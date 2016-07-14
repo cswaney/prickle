@@ -91,5 +91,5 @@ ENV/
 .ropeproject
 
 # Data files
-.bin
-.hdf5
+*.bin
+*.hdf5
