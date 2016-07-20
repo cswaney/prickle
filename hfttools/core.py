@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import psycopg2 as pg
 import struct
 import h5py
 
@@ -27,6 +28,64 @@ class Database():
 
     def close(self):
         self.file.close()
+
+class Postgres():
+    """A PostgreSQL database to store message and order book data. """
+
+    def __init__(self, host, user, nlevels):
+
+        self.host = host
+        self.user = user
+        self.nlevels = nlevels
+
+        # create column info
+        msg_sql = """create table messages (date varchar,
+                                            sec integer,
+                                            nano integer,
+                                            type varchar,
+                                            event varchar,
+                                            name varchar,
+                                            buysell varchar,
+                                            price integer,
+                                            shares integer,
+                                            refno integer,
+                                            newrefno integer)"""
+
+        cols = ['date date',
+                'sec integer',
+                'nano integer',
+                'name varchar']
+        cols.extend(['bid_prc_' + str(i) + ' integer' for i in range(nlevels,0,-1)])
+        cols.extend(['ask_prc_' + str(i) + ' integer' for i in range(1,nlevels+1)])
+        cols.extend(['bid_vol_' + str(i) + ' integer' for i in range(nlevels,0,-1)])
+        cols.extend(['ask_vol_' + str(i) + ' integer' for i in range(1,nlevels+1)])
+        col_sql = ', '.join(cols)
+        book_sql = 'create table orderbooks (' + col_sql + ')'
+
+        # open connection to database
+        try:
+            conn = pg.connect(host=self.host, user=self.user)
+            with conn.cursor() as cur:
+                try:  # create message table
+                    cur.execute(msg_sql)
+                    conn.commit()
+                except pg.Error as e:
+                    print(e.pgerror)
+                try:  # create orderbook table
+                    cur.execute(book_sql)
+                    conn.commit()
+                except pg.Error as e:
+                    print(e.pgerror)
+            conn.close()
+            print('Created a new PostgreSqL database.')
+        except pg.Error as e:
+            print('ERROR: unable to connect to database.')
+
+    def open(self):
+        self.conn = pg.connect(host=self.host, user=self.user)
+
+    def close(self):
+        self.conn.close()
 
 class Message():
     """A class to represent order book messages."""
@@ -83,6 +142,23 @@ class Message():
         else:
             print('Warning: "split" method called on non-replacement messages.')
         return (delete_message, add_message)
+
+    def to_list(self, date):
+        """Returns message as a list."""
+
+        values = []
+        values.append(str(date))
+        values.append(int(self.sec))
+        values.append(int(self.nano))
+        values.append(str(self.type))
+        values.append(str(self.event))
+        values.append(str(self.name))
+        values.append(str(self.buysell))
+        values.append(int(self.price))
+        values.append(int(self.shares))
+        values.append(int(self.refno))
+        values.append(int(self.newrefno))
+        return values
 
     def to_array(self):
         """Returns message as an np.array of integers."""
@@ -168,6 +244,25 @@ class Messagelist():
         self.messages[name] = []  # reset
         print('wrote {} lines to dataset {}'.format(array_size,
                                                     db.messages[name]))
+
+    def to_postgres(self, date, name, db):
+        # connect to postgres
+        db.open()
+        # get the message list for name
+        m = self.messages[name]
+        # convert the messages to a list of lists
+        listed = [message.to_list(date) for message in m]
+        # write the messages/lists to the db
+        with db.conn.cursor() as cursor:
+            for message in listed:
+                try:
+                    cursor.execute('insert into messages values%s;', [tuple(message)])  # %s becomes "(x,..., x)"
+                except pg.Error as e:
+                    print(e.pgerror)
+        db.conn.commit()
+        db.close()
+        self.messages[name] = [] # reset
+        print('wrote {} lines to messages table for name {}'.format(len(m), name))
 
 class Order():
     """A class to represent basic orders."""
@@ -325,6 +420,36 @@ class Book():
                     self.asks[message.price] = message.shares
         return self
 
+    def to_list(self, date, name):
+        values = []
+        values.append(date)
+        values.append(int(self.sec))
+        values.append(int(self.nano))
+        values.append(name)
+        sorted_bids = sorted(self.bids.keys(), reverse=True)
+        sorted_asks = sorted(self.asks.keys())
+        for i in range(0, self.levels): # bid price
+            if i < len(self.bids):
+                values.append(sorted_bids[i])
+            else:
+                values.append(0)
+        for i in range(0, self.levels): # ask price
+            if i < len(self.asks):
+                values.append(sorted_asks[i])
+            else:
+                values.append(0)
+        for i in range(0, self.levels): # bid depth
+            if i < len(self.bids):
+                values.append(self.bids[sorted_bids[i]])
+            else:
+                values.append(0)
+        for i in range(0, self.levels): # ask depth
+            if i < len(self.asks):
+                values.append(self.asks[sorted_asks[i]])
+            else:
+                values.append(0)
+        return values
+
     def to_array(self):
         '''Converts book to numpy array.'''
 
@@ -383,6 +508,25 @@ class Booklist():
         print('wrote {} lines to dataset {}'.format(array_size,
                                                     db.orderbooks[name]))
 
+    def to_postgres(self, date, name, db):
+        # connect to postgres
+        db.open()
+        # get the message list for name
+        ob = self.books[name]['hist']
+        # convert the messages to a list of lists
+        listed = [book.to_list(date=date, name=name) for book in ob]
+        # write the messages/lists to the db
+        with db.conn.cursor() as cursor:
+            for book in listed:
+                try:
+                    cursor.execute('insert into orderbooks values%s;', [tuple(book)])  # %s becomes "(x,..., x)"
+                except pg.Error as e:
+                    print(e.pgerror)
+        db.conn.commit()
+        db.close()
+        self.books[name]['cur'] = ob[-1]  # reset
+        self.books[name]['hist'] = []  # reset
+        print('wrote {} lines to orderbooks table for name {}'.format(len(ob),name))
 
 def get_message_size(size_in_bytes):
     """Returns the size in bytes of a binary message."""
