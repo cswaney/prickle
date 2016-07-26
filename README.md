@@ -4,7 +4,34 @@ A Python toolkit for high-frequency trade research.
 Website: [https://cswaney.github.io/hfttools/](https://cswaney.github.io/hfttools/)
 
 
-TODO:
+## Summary
+
+hfttools is a Python toolkit for financial researchers. Its goal is to provide a common tool for market microstucture research using NASDAQ HistoricalView-ITCH data.
+
+## Interface
+
+``unpack()``
+    Create a database of message and order book data.
+
+## Installation
+![alt text](https://img.shields.io/pypi/v/hfttools.svg "pypi")
+
+Using the Python package manager:
+
+```
+pip install hfttools
+```
+
+Create a new database in Python:
+
+```
+import hfttools
+
+unpack()
+```
+
+
+## TODO:
 
 (1) Add support for trading halts (global).
   - Process trading halts in System messages.
