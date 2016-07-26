@@ -139,9 +139,9 @@ class Message():
             add_message = Message(sec=self.sec, nano=self.nano, type='U',
                                   price=self.price, shares=self.shares,
                                   refno=self.refno, newrefno=self.newrefno)
+            return (delete_message, add_message)
         else:
             print('Warning: "split" method called on non-replacement messages.')
-        return (delete_message, add_message)
 
     def to_list(self, date):
         """Returns message as a list."""
