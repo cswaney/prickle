@@ -22,7 +22,6 @@ def unpack(fin, ver, date, fout, nlevels, names, method=None):
         pass
     else:
         print('No database option specified. Creating comma-seperated value files.')
-        pass
     data = open(fin, 'rb')
 
     messagecount = 0
