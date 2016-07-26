@@ -22,14 +22,21 @@ Using the Python package manager:
 pip install hfttools
 ```
 
-Create a new database in Python:
+Create a new HDF5 database:
 
 ```
 import hfttools
 
-unpack()
+unpack('itch_010113.bin',
+       ver=4.1,
+       date='2013-01-01',
+       fout='itch.hdf5'
+       nlevels=10,
+       names=['GOOG', 'AAPL'],
+       method='hdf5')
 ```
 
+This will create a file `itch.hdf5` that containing message and order book data for Google and Apple.
 
 ## TODO:
 
