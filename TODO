@@ -12,4 +12,5 @@
   - Make this an option (e.g. log=True).
 
 
-- Docstrings!
+- Replace message shares can change.
+- Docstrings.

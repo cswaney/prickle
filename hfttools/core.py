@@ -88,7 +88,23 @@ class Postgres():
         self.conn.close()
 
 class Message():
-    """A class to represent order book messages."""
+    """A class to represent messages.
+
+    A class representing out-going messages from the NASDAQ system.
+
+    Attributes:
+        sec (int): seconds
+        nano (int): nano seconds
+        type (str): message type
+        event (str): system event
+        name (str): stock ticker
+        buysell (str): buy or sell
+        price (int): price
+        shares (int): shares
+        refno (int): reference number
+        newrefno (int): replacement reference number
+
+    """
 
     def __init__(self, sec=-1, nano=-1, type='.', event='.', name='.',
                  buysell='.', price=-1, shares=0, refno=-1, newrefno=-1):
@@ -222,7 +238,19 @@ class Message():
         return np.array(values)
 
 class Messagelist():
-    """A class to store messages."""
+    """A class to store messages.
+
+    Provides methods for writing to HDF5 and PostgreSQL databases.
+
+    Example:
+        Create a MessageList::
+
+            >> msglist = hft.Messagelist(['GOOG', 'AAPL'])
+
+    Attributes:
+        messages (list): list of Messages.
+
+    """
 
     def __init__(self, names):
         self.messages = {}
@@ -230,9 +258,14 @@ class Messagelist():
             self.messages[name] = []
 
     def add(self,message):
-        self.messages[message.name].append(message)
+        """Add a message to the list."""
+        try:
+            self.messages[message.name].append(message)
+        except KeyError as e:
+            print("KeyError: Could not find {} in the message list".format(message.name))
 
     def to_hdf5(self, name, db):
+        """Write messages to HDF5 file."""
         m = self.messages[name]
         listed = [message.to_array() for message in m]
         array = np.array(listed)
@@ -246,6 +279,7 @@ class Messagelist():
                                                     db.messages[name]))
 
     def to_postgres(self, date, name, db):
+        """Write messages to PostgreSQL database."""
         # connect to postgres
         db.open()
         # get the message list for name
@@ -265,7 +299,17 @@ class Messagelist():
         print('wrote {} lines to messages table for name {}'.format(len(m), name))
 
 class Order():
-    """A class to represent basic orders."""
+    """A class to represent limit orders.
+
+    Store message primary data for order book reconstruction.
+
+    Attributes:
+        name (str): stock ticker
+        buysell (str): buy or sell
+        price (int): price
+        shares (int): shares
+
+    """
 
     def __init__(self, name='.', buysell='.', price='.', shares='.'):
         self.name = name
@@ -290,7 +334,14 @@ class Order():
         return 'Order(' + sep.join(line) + ')'
 
 class Orderlist():
-    """Stores existing orders and processes incoming messages."""
+    """A class to store existing orders and process incoming messages.
+
+    This class handles the matching of messages to standing orders. Incoming messages are first matched to standing orders so that missing message data can be completed, and then the referenced order is updated based on the message.
+
+    Attributes:
+        orders (dict): keys are reference numbers, values are Orders.
+
+    """
 
     def __init__(self):
         self.orders = {}
@@ -304,8 +355,7 @@ class Orderlist():
 
     # updates message by reference.
     def complete_message(self, message):
-        """Looks up reference order for message and fill in missing data."""
-
+        """Look up order for message and fill in missing data."""
         if message.refno in self.orders.keys():
             # print('complete_message received message: {}'.format(message.type))
             ref_order = self.orders[message.refno]
@@ -327,7 +377,7 @@ class Orderlist():
                 message.shares = -ref_order.shares
 
     def add(self, message):
-        """Adds a new order to the orderlist."""
+        """Add a new order to the list."""
         order = Order()
         order.name = message.name
         order.buysell = message.buysell
@@ -336,7 +386,7 @@ class Orderlist():
         self.orders[message.refno] = order
 
     def update(self, message):
-        """Updates an existing order based on incoming message."""
+        """Update an existing order based on incoming message."""
         if message.refno in self.orders.keys():
             if message.type == 'E': # execute
                 self.orders[message.refno].shares += message.shares
@@ -350,7 +400,18 @@ class Orderlist():
             pass
 
 class Book():
-    """A class to represent an order book."""
+    """A class to represent an order book.
+
+    This class provides a method for updating the state of an order book from an incoming message. 
+
+    Attributes:
+        bids (dict): keys are prices, values are shares
+        asks (dict): keys are prices, values are shares
+        levels (int): levels of the the order book to track
+        sec (int): seconds
+        nano (int): nanoseconds
+
+    """
 
     def __init__(self, levels):
         self.bids = {}
@@ -398,8 +459,7 @@ class Book():
         return 'Book( \n' + 'bids: ' + sep.join(bid_list) + '\n' + 'asks: ' + sep.join(ask_list) + ' )'
 
     def update(self, message):
-        """Updates order book according to incoming message."""
-
+        """Update order book using incoming message data."""
         self.sec = message.sec
         self.nano = message.nano
         if message.buysell == 'B':
@@ -421,6 +481,7 @@ class Book():
         return self
 
     def to_list(self, date, name):
+        """Return order book as a list."""
         values = []
         values.append(date)
         values.append(int(self.sec))
@@ -451,8 +512,7 @@ class Book():
         return values
 
     def to_array(self):
-        '''Converts book to numpy array.'''
-
+        '''Return order book as numpy array.'''
         values = []
         values.append(int(self.sec))
         values.append(int(self.nano))
@@ -481,7 +541,19 @@ class Book():
         return np.array(values)
 
 class Booklist():
-    """A class to store order books."""
+    """A class to store order books.
+
+    Provides methods for writing to external databases.
+
+    Example:
+        Create a Booklist::
+
+            >> booklist = hft.BookList(['GOOG', 'AAPL'], levels=10)
+
+    Attributes:
+        books (list): list of Books.
+
+    """
 
     def __init__(self, names, levels):
         self.books = {}
@@ -489,12 +561,12 @@ class Booklist():
             self.books[name] = {'hist':[], 'cur':Book(levels)}
 
     def update(self, message):
+        """Update order book data from message."""
         b = self.books[message.name]['cur'].update(message)
         self.books[message.name]['hist'].append(b)
 
     def to_hdf5(self, name, db):
-        """Writes books to HDF5 file."""
-
+        """Write order books to HDF5 file."""
         ob = self.books[name]['hist']
         listed = [book.to_array() for book in ob]
         array = np.array(listed)
@@ -509,6 +581,7 @@ class Booklist():
                                                     db.orderbooks[name]))
 
     def to_postgres(self, date, name, db):
+        """Write order books to PostgreSQL database."""
         # connect to postgres
         db.open()
         # get the message list for name
@@ -529,19 +602,16 @@ class Booklist():
         print('wrote {} lines to orderbooks table for name {}'.format(len(ob),name))
 
 def get_message_size(size_in_bytes):
-    """Returns the size in bytes of a binary message."""
-
+    """Return number of bytes in binary message as an integer."""
     (message_size,) = struct.unpack('>H', size_in_bytes)
     return message_size
 
 def get_message_type(type_in_bytes):
-    """Returns the type of a binary message."""
-
+    """Return the type of a binary message as a string."""
     return type_in_bytes.decode('ascii')
 
 def get_message(message_bytes, message_type, time, version):
-    """Unpacks a binary message and returns it as a Message."""
-
+    """Return binary message data as a Message."""
     if message_type in ('T', 'S', 'A', 'F', 'E', 'C', 'X', 'D', 'U'):
         message = protocol(message_bytes, message_type, time, version)
         if version == 5.0:
@@ -551,76 +621,8 @@ def get_message(message_bytes, message_type, time, version):
     else:
         return None
 
-# def protocol(message_bytes, message_type, time):
-#     """Helper method for unpacking binary message."""
-#
-#     message = Message()
-#     message.type = message_type
-#
-#     if message.type == 'T':  # time
-#         temp = struct.unpack('>I', message_bytes)
-#         message.sec = temp[0]
-#         message.nano = 0
-#     elif message_type == 'S':  # systems
-#         temp = struct.unpack('>Is', message_bytes)
-#         message.event = temp[1].decode('ascii')
-#         message.sec = time
-#         message.nano = temp[0]
-#     elif message.type == 'A':  # add
-#         temp = struct.unpack('>IQsI8sI', message_bytes)
-#         message.sec = time
-#         message.nano = temp[0]
-#         message.refno = temp[1]
-#         message.buysell = temp[2].decode('ascii')
-#         message.shares = temp[3]
-#         message.name = temp[4].decode('ascii').rstrip(' ')
-#         message.price = temp[5]
-#     elif message.type == 'F':  # add w/mpid
-#         temp = struct.unpack('>IQsI8sI4s', message_bytes)
-#         message.sec = time
-#         message.nano = temp[0]
-#         message.refno = temp[1]
-#         message.buysell = temp[2].decode('ascii')
-#         message.shares = temp[3]
-#         message.name = temp[4].decode('ascii').rstrip(' ')
-#         message.price = temp[5]
-#     elif message.type == 'E':  # execute
-#         temp = struct.unpack('>IQIQ', message_bytes)
-#         message.sec = time
-#         message.nano = temp[0]
-#         message.refno = temp[1]
-#         message.shares = temp[2]
-#     elif message.type == 'C':  # execute w/price
-#         temp = struct.unpack('>IQIQsI', message_bytes)
-#         message.sec = time
-#         message.nano = temp[0]
-#         message.refno = temp[1]
-#         message.shares = temp[2]
-#         message.price = temp[5]
-#     elif message.type == 'X':  # cancel
-#         temp = struct.unpack('>IQI', message_bytes)
-#         message.sec = time
-#         message.nano = temp[0]
-#         message.refno = temp[1]
-#         message.shares = temp[2]
-#     elif message.type == 'D':  # delete
-#         temp = struct.unpack('>IQ', message_bytes)
-#         message.sec = time
-#         message.nano = temp[0]
-#         message.refno = temp[1]
-#     elif message.type == 'U':  # replace
-#         temp = struct.unpack('>IQQII', message_bytes)
-#         message.sec = time
-#         message.nano = temp[0]
-#         message.refno = temp[1]
-#         message.newrefno = temp[2]
-#         message.shares = temp[3]
-#         message.price = temp[4]
-#     return message
-
 def protocol(message_bytes, message_type, time, version):
-    """Helper method for unpacking binary message data."""
-
+    """Decode binary message data and return as a Message."""
     message = Message()
     message.type = message_type
 
@@ -850,7 +852,10 @@ def protocol(message_bytes, message_type, time, version):
     else:
         raise ValueError('ITCH version ' + str(version) + ' is not supported')
 
+# Auxillary
+
 def import_names():
+    """Create a list of names from text file."""
     names = []
     fin = open('names.txt', 'r')
     while True:
