@@ -228,7 +228,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'sample', u'sample Documentation',
-   u'Kenneth Reitz', 'sample', 'One line description of project.',
+   u'Colin Swaney', 'sample', 'One line description of project.',
    'Miscellaneous'),
 ]
 

@@ -47,6 +47,8 @@ coverage.xml
 *,cover
 .hypothesis/
 tests/
+nose2
+nose2/
 
 # Translations
 *.mo
@@ -94,3 +96,6 @@ ENV/
 # Data files
 *.bin
 *.hdf5
+
+# Playground
+playground/
