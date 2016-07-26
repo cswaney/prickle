@@ -1,294 +1,202 @@
-
+import hfttools as hft
 import pandas as pd
 import numpy as np
-import itch
+import psycopg2
 import h5py
-import sys
-import time as timer
+import time
 
-## CONSTANTS ##
-DATE = sys.argv[1]
-LEVELS = int(sys.argv[2])
-MROWS = 10**1                                                                   ###
-BROWS = 10**1
+def unpack(fin, ver, date, fout, nlevels, names, method=None):
+    """Method to unpack a ITCH data file and reconstruct the limit order book."""
 
-## DATA ##
-fin = open('/Users/colinswaney/Research/Data/ITCH/bin/S' + DATE + '-v41.bin', 'rb')
-# fout = h5py.File('/Users/colinswaney/Research/Data/ITCH/hdf5/hft.hdf5', 'a')  ###
-fout = h5py.File('/Users/colinswaney/Research/Data/ITCH/hdf5/test.hdf5', 'a')   ###
-time = 0  # time (sec)
-writing = 'OFF'  # turns ON at 9:30 AM (Q)
-reading = 'ON'  # turns OFF at 4:00 PM (M)
-orderlist = itch.Orderlist()  # key: name, value: itch.Order
-namelist = itch.import_names('names.txt')  # tickers
-namelist = ['GOOG']                                                             ###
-booklist = itch.Booklist(namelist, LEVELS)  # key: name, value: itch.Book
-messagecounts = {}  # total writes to messagedata
-bookcounts = {}  # total writes to bookdata
-messagetempcounts = {}  # subtotal writes to messagedata
-booktempcounts = {}  # subtotal writes to bookdata
-messagedata = {}  # key: name, value: pd.DataFrame
-bookdata = {}  # key: name, value: pdDataFrame
-for name in namelist:
-    messagedata[name] = np.empty((MROWS,9))
-    messagedata[name].fill(0)
-    messagecounts[name] = 0
-    messagetempcounts[name] = 0
-    bookdata[name] = np.empty((BROWS,2 + LEVELS * 4))
-    bookdata[name].fill(0)
-    bookcounts[name] = 0
-    booktempcounts[name] = 0
-input('PAUSED for memory check...')
+    MAXROWS = 10**4
 
-## WHILE-LOOP ##
-message_count = 0
-start = timer.time()
-while reading == 'ON':
+    orderlist = hft.Orderlist()
+    booklist = hft.Booklist(names, nlevels)
+    messagelist = hft.Messagelist(names)
 
-    # read message...
-    message_size = itch.get_message_size(fin.read(2))  # read 2 bytes
-    message_type = itch.get_message_type(fin.read(1))  # read 1 bytes
-    message_bytes = fin.read(message_size - 1)
-    message = itch.get_message(message_bytes, message_type, time)
-    message_count += 1
+    if method == 'hdf5':
+        db = hft.Database(fout, names)
+    elif method == 'postgres':
+        db = hft.Postgres(host='localhost', user='colinswaney', nlevels=nlevels)
+    elif method == 'csv':
+        pass
+    else:
+        print('No database option specified. Creating comma-seperated value files.')
+        pass
+    data = open(fin, 'rb')
 
-    # update time...
-    if message_type == 'T':
-        # print('time=', time, sep='')
-        time = message.sec
-    # update system...
-    if message_type == 'S':
-        print('SYSTEM MESSAGE:', message.event)
-        if message.event == 'Q':
-            writing = 'ON'
-        elif message.event == 'M':
-            reading = 'OFF'
+    messagecount = 0
 
-    # complete message...
-    if message_type == 'U':
-        delete_message, replace_message = message.split()
-        orderlist.complete_message(delete_message)
-        orderlist.complete_message(replace_message)
-    elif message_type in ('E', 'C', 'X', 'D'):
-        orderlist.complete_message(message)
+    reading = True
+    writing = False
+    clock = 0
 
-    # update orderlist...
-    if message_type == 'U':
-        if delete_message.name in namelist:
-            orderlist.update(delete_message)
-        if replace_message.name in namelist:
-            orderlist.add_order(replace_message)
-            if delete_message.name == 'GOOG':                                   ###
-                print('replace message!')
+    start = time.time()
+
+    # unpacking
+    while reading:
+
+        # read message
+        message_size = hft.get_message_size(data.read(2))
+        message_type = hft.get_message_type(data.read(1))
+        message_bytes = data.read(message_size - 1)
+        message = hft.get_message(message_bytes, message_type, clock, version)
+        messagecount += 1
+
+        # update clock
+        if message_type == 'T':
+            if message.sec % 60 == 0:
+                print('TIME={}'.format(message.sec))
+            clock = message.sec
+
+        # update system
+        if message_type == 'S':
+            print('SYSTEM MESSAGE: {}'.format(message.event))
+            if message.event == 'Q':  # start system
+                writing = True
+            elif message.event == 'M':  # end market
+                reading = False
+            elif message.event == 'A':
+                pass  # trading halt
+            elif message.event == 'R':
+                pass  # quote only
+            elif message.event == 'B':
+                pass  # resume trading
+            input('PAUSED (press any button to continue).')
+
+        if message_type == 'H':
+            print('TRADE-ACTION MESSAGE: {}'.format(message.event))
+            if message.event in ('H','P','V'):
+                pass  # remove message.name from names
+            elif message.event == 'T':
+                pass  # add message.name to names (check that it isn't there already)
+            elif message.event in ('Q','R'):
+                pass  # quote only (only accepting A, F, X, D, U)
+
+        # complete message
+        if message_type == 'U':
+            delete_message, add_message = message.split()
+            orderlist.complete_message(delete_message)
+            orderlist.complete_message(add_message)
+        elif message_type in ('E', 'C', 'X', 'D'):
+            orderlist.complete_message(message)
+        print('completed the message.')
+
+        # update orders
+        if message_type == 'U':
+            if delete_message.name in names:
+                orderlist.update(delete_message)
                 print(delete_message)
-                print(replace_message)
-    elif message_type in ('E', 'C', 'X', 'D'):
-        if message.name in namelist:
-            orderlist.update(message)
-            if message.name == 'GOOG':                                          ###
+            if add_message.name in names:
+                orderlist.add(add_message)
+                print(add_message)
+        elif message_type in ('E', 'C', 'X', 'D'):
+            if message.name in names:
+                orderlist.update(message)
                 print(message)
-    elif message_type in ('A', 'F'):
-        if message.name in namelist:
-            orderlist.add_order(message)
-            if message.name == 'GOOG':                                          ###
+        elif message_type in ('A', 'F'):
+            if message.name in names:
+                orderlist.add(message)
                 print(message)
+        print('updated the order list')
 
-    # update booklist...
-    if message_type == 'U':
-        if delete_message.name in namelist:
-            booklist.books[delete_message.name].update(delete_message)
-        if replace_message.name in namelist:
-            booklist.books[replace_message.name].update(replace_message)
-    elif message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
-        if message.name in namelist:
-            booklist.books[message.name].update(message)
-
-    # update messagedata...
-    if writing == 'ON':
-        if message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
-            if message.name in namelist:
-                # print('message written to messagedata:', message.type)
-                row = messagetempcounts[message.name]
-                messagedata[message.name][row,:] = message.values()
-                messagecounts[message.name] += 1
-                messagetempcounts[message.name] += 1
-                # print('messagecounts:', messagecounts[message.name])
-                # print('messagetempcounts:', messagetempcounts[message.name])
-        elif message_type == 'U':
-            if delete_message.name in namelist:
-                # print('message written to messagedata:', delete_message.type)
-                row = messagetempcounts[delete_message.name]
-                messagedata[delete_message.name][row,:] = delete_message.values()
-                messagecounts[delete_message.name] += 1
-                messagetempcounts[delete_message.name] += 1
-                # print('messagecounts:', messagecounts[delete_message.name])
-                # print('messagetempcounts:', messagetempcounts[delete_message.name])
-                # print('message written to messagedata:', replace_message.type)
-                row = messagetempcounts[replace_message.name]
-                messagedata[replace_message.name][row,:] = replace_message.values()
-                messagecounts[replace_message.name] += 1
-                messagetempcounts[replace_message.name] += 1
-                # print('messagecounts:', messagecounts[replace_message.name])
-                # print('messagetempcounts:', messagetempcounts[replace_message.name])
-        else:
+        # update messages, books, and write to disk
+        if method == 'hdf5':
+            if message_type == 'U':
+                if delete_message.name in names:
+                    # update messages
+                    messagelist.add(delete_message)
+                    print('{} message added to messagelist'.format(delete_message.type))
+                    if len(messagelist.messages[delete_message.name]) == MAXROWS:
+                            messagelist.to_hdf5(name=delete_message.name, db=db)
+                        input('Press any button to continue.')
+                    # update books
+                    booklist.update(delete_message)
+                    print('{} book was updated.'.format(delete_message.name))
+                    if len(booklist.books[delete_message.name]['hist']) == MAXROWS:
+                        booklist.to_hdf5(name=delete_message.name, db=db)
+                        input('Press any button to continue.')
+                if add_message.name in names:
+                    # update messages
+                    messagelist.add(add_message)
+                    print('{} message added to messagelist'.format(add_message.type))
+                    if len(messagelist.messages[add_message.name]) == MAXROWS:
+                        messagelist.to_hdf5(name=add_message.name, db=db)
+                        input('Press any button to continue.')
+                    # update books
+                    booklist.update(add_message)
+                    print('{} book was updated.'.format(add_message.name))
+                    if len(booklist.books[add_message.name]['hist']) == MAXROWS:
+                        booklist.to_hdf5(name=add_message.name, db=db)
+                        input('Press any button to continue.')
+            elif message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
+                if message.name in names:
+                    # update messages
+                    messagelist.add(message)
+                    print('{} message added to messagelist'.format(message.type))
+                    if len(messagelist.messages[message.name]) == MAXROWS:
+                        messagelist.to_hdf5(name=message.name, db=db)
+                        input('Press any button to continue.')
+                    # update books
+                    booklist.update(message)
+                    print('{} book was updated.'.format(message.name))
+                    if len(booklist.books[message.name]['hist']) == MAXROWS:
+                        booklist.to_hdf5(name=message.name, db=db)
+                        input('Press any button to continue.')
+        elif method == 'postgres':
+            if message_type == 'U':
+                if delete_message.name in namelist:
+                    # update messages
+                    messagelist.add(delete_message)
+                    # print('{} message added to messagelist'.format(delete_message.type))
+                    if len(messagelist.messages[delete_message.name]) == maxrows:
+                        messagelist.to_postgres(date=date, name=delete_message.name, db=db)
+                        # input('Press any button to continue.')
+                    # update books
+                    booklist.update(delete_message)
+                    # print('{} book was updated.'.format(delete_message.name))
+                    if len(booklist.books[delete_message.name]['hist']) == maxrows:
+                        booklist.to_postgres(date=date, name=delete_message.name, db=db)
+                        # input('Press any button to continue.')
+                if add_message.name in namelist:
+                    # update messages
+                    messagelist.add(add_message)
+                    # print('{} message added to messagelist'.format(add_message.type))
+                    if len(messagelist.messages[add_message.name]) == maxrows:
+                        messagelist.to_postgres(date=date, name=add_message.name, db=db)
+                        # input('Press any button to continue.')
+                    # update books
+                    booklist.update(add_message)
+                    # print('{} book was updated.'.format(add_message.name))
+                    if len(booklist.books[add_message.name]['hist']) == maxrows:
+                        booklist.to_postgres(date=date, name=add_message.name, db=db)
+                        # input('Press any button to continue.')
+            elif message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
+                if message.name in namelist:
+                    # update messages
+                    messagelist.add(message)
+                    # print('{} message added to messagelist'.format(message.type))
+                    if len(messagelist.messages[message.name]) == maxrows:
+                        messagelist.to_postgres(date=date, name=message.name, db=db)
+                        # input('Press any button to continue.')
+                    # update books
+                    booklist.update(message)
+                    # print('{} book was updated.'.format(message.name))
+                    if len(booklist.books[message.name]['hist']) == maxrows:
+                        booklist.to_postgres(date=date, name=message.name, db=db)
+                        # input('Press any button to continue.')
+        elif method == 'csv':
             pass
 
-    # update bookdata...
-    if writing == 'ON':
-        if message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
-            if message.name in namelist:
-                # print('message written to bookdata:', message_type)
-                row = booktempcounts[message.name]
-                book = booklist.books[message.name]
-                bookdata[message.name][row,:] = book.values()
-                bookcounts[message.name] += 1
-                booktempcounts[message.name] += 1
-                # print('bookcounts:', bookcounts[message.name])
-                # print('booktempcounts:', booktempcounts[message.name])
-                if message.name == 'GOOG':                                      ###
-                    print(booklist.books['GOOG'])
-                    # input('paused...')
+    # clean up
+    for name in names:
+        messagelist.to_hdf5(name=name, db=db)
+        booklist.to_hdf5(name=name, db=db)
 
-        elif message_type == 'U':
-            if delete_message.name in namelist:
-                # print('message written to bookdata:', message_type)
-                row = booktempcounts[delete_message.name]
-                book = booklist.books[delete_message.name]
-                bookdata[delete_message.name][row,:] = book.values()
-                bookcounts[delete_message.name] += 1
-                booktempcounts[delete_message.name] += 1
-                # print('bookcounts:', bookcounts[delete_message.name])
-                # print('booktempcounts:', booktempcounts[delete_message.name])
-                if delete_message.name == 'GOOG':                               ###
-                    print(booklist.books['GOOG'])
-                    input('paused...')
-        else:
-            pass
+    stop = time.time()
 
-    # messagedata to HDF5...
-    if writing == 'ON':
-        if message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
-            if message.name in namelist:
-                if messagetempcounts[message.name] >= MROWS - 2:
-                    print('messagedata written to HDF5:', message.name)
-                    name = message.name
-                    data = messagedata[name][0:messagetempcounts[name],:]
-                    count = messagecounts[name]
-                    group = 'messages'
-                    if count <= MROWS:
-                        initial_write = True
-                    else:
-                        initial_write = False
-                    itch.writedata(data,
-                                   fout,
-                                   group,
-                                   name,
-                                   DATE,
-                                   count,
-                                   init=initial_write)
-                    messagetempcounts[message.name] = 0
-        elif message_type == 'U':
-            if delete_message.name in namelist and replace_message.name in namelist:
-                if messagetempcounts[delete_message.name] >= MROWS - 2:
-                    print('messagedata written to HDF5:', delete_message.name)
-                    name = delete_message.name
-                    data = messagedata[name][0:messagetempcounts[name],:]
-                    count = messagecounts[name]
-                    group = 'messages'
-                    if count <= MROWS:
-                        initial_write = True
-                    else:
-                        initial_write = False
-                    itch.writedata(data,
-                                   fout,
-                                   group,
-                                   name,
-                                   DATE,
-                                   count,
-                                   init=initial_write)
-                    messagetempcounts[delete_message.name] = 0
-        else:
-            pass
+    data.close()
+    db.close()
 
-    # bookdata to HDF5...
-    if writing == 'ON':
-        if message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
-            if message.name in namelist:
-                if booktempcounts[message.name] == BROWS:
-                    # input('PAUSED for memory check...')
-                    print('bookdata written to HDF5:', message.name)
-                    name = message.name
-                    data = bookdata[name]
-                    print(data)                                                 ###
-                    count = bookcounts[name]
-                    group = 'orderbooks'
-                    if count == BROWS:
-                        initial_write = True
-                    else:
-                        initial_write = False
-                    itch.writedata(data,
-                                   fout,
-                                   group,
-                                   name,
-                                   DATE,
-                                   count,
-                                   init=initial_write)
-                    booktempcounts[message.name] = 0
-        elif message_type == 'U':
-            if delete_message.name in namelist and replace_message.name in namelist:
-                if booktempcounts[delete_message.name] == BROWS:
-                    # input('PAUSED for memory check...')
-                    print('bookdata written to HDF5 (U):', delete_message.name)
-                    name = delete_message.name
-                    data = bookdata[name]
-                    print(data)                                                 ###
-                    count = bookcounts[name]
-                    group = 'orderbooks'
-                    if count == BROWS:
-                        initial_write = True
-                    else:
-                        initial_write = False
-                    itch.writedata(data,
-                                   fout,
-                                   group,
-                                   name,
-                                   DATE,
-                                   count,
-                                   init=initial_write)
-                    booktempcounts[delete_message.name] = 0
-        else:
-            pass
-
-stop = timer.time()
-input('PAUSED for memory check...')
-
-## CLEAN-UP ##
-for name in namelist:
-    data = messagedata[name][0:messagetempcounts[name],:]
-    count = messagecounts[name]
-    group = 'messages'
-    print('final message write')
-    itch.writedata(data,
-               fout,
-               group,
-               name,
-               DATE,
-               count,
-               init=False)
-    data = bookdata[name][0:booktempcounts[name],:]
-    count = bookcounts[name]
-    group = 'orderbooks'
-    print('final book write')
-    itch.writedata(data,
-                   fout,
-                   group,
-                   name,
-                   DATE,
-                   count,
-                   init=False)
-fin.close()
-fout.close()
-
-## OUTPUT ##
-print('Elapsed time:', stop - start, 'sec')
-print('Messages read:', message_count)
+    print('Elapsed time: {} seconds'.format(stop - start))
+    print('Messages read: {}'.format(messagecount))

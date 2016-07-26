@@ -539,80 +539,316 @@ def get_message_type(type_in_bytes):
 
     return type_in_bytes.decode('ascii')
 
-def get_message(message_bytes, message_type, time):
+def get_message(message_bytes, message_type, time, version):
     """Unpacks a binary message and returns it as a Message."""
 
     if message_type in ('T', 'S', 'A', 'F', 'E', 'C', 'X', 'D', 'U'):
-        return protocol(message_bytes, message_type, time)
+        message = protocol(message_bytes, message_type, time, version)
+        if version == 5.0:
+            message.sec = int(message.nano / 10**9)
+            message.nano = message.nano % 10**9
+        return message
     else:
         return None
 
-def protocol(message_bytes, message_type, time):
-    """Helper method for unpacking binary message."""
+# def protocol(message_bytes, message_type, time):
+#     """Helper method for unpacking binary message."""
+#
+#     message = Message()
+#     message.type = message_type
+#
+#     if message.type == 'T':  # time
+#         temp = struct.unpack('>I', message_bytes)
+#         message.sec = temp[0]
+#         message.nano = 0
+#     elif message_type == 'S':  # systems
+#         temp = struct.unpack('>Is', message_bytes)
+#         message.event = temp[1].decode('ascii')
+#         message.sec = time
+#         message.nano = temp[0]
+#     elif message.type == 'A':  # add
+#         temp = struct.unpack('>IQsI8sI', message_bytes)
+#         message.sec = time
+#         message.nano = temp[0]
+#         message.refno = temp[1]
+#         message.buysell = temp[2].decode('ascii')
+#         message.shares = temp[3]
+#         message.name = temp[4].decode('ascii').rstrip(' ')
+#         message.price = temp[5]
+#     elif message.type == 'F':  # add w/mpid
+#         temp = struct.unpack('>IQsI8sI4s', message_bytes)
+#         message.sec = time
+#         message.nano = temp[0]
+#         message.refno = temp[1]
+#         message.buysell = temp[2].decode('ascii')
+#         message.shares = temp[3]
+#         message.name = temp[4].decode('ascii').rstrip(' ')
+#         message.price = temp[5]
+#     elif message.type == 'E':  # execute
+#         temp = struct.unpack('>IQIQ', message_bytes)
+#         message.sec = time
+#         message.nano = temp[0]
+#         message.refno = temp[1]
+#         message.shares = temp[2]
+#     elif message.type == 'C':  # execute w/price
+#         temp = struct.unpack('>IQIQsI', message_bytes)
+#         message.sec = time
+#         message.nano = temp[0]
+#         message.refno = temp[1]
+#         message.shares = temp[2]
+#         message.price = temp[5]
+#     elif message.type == 'X':  # cancel
+#         temp = struct.unpack('>IQI', message_bytes)
+#         message.sec = time
+#         message.nano = temp[0]
+#         message.refno = temp[1]
+#         message.shares = temp[2]
+#     elif message.type == 'D':  # delete
+#         temp = struct.unpack('>IQ', message_bytes)
+#         message.sec = time
+#         message.nano = temp[0]
+#         message.refno = temp[1]
+#     elif message.type == 'U':  # replace
+#         temp = struct.unpack('>IQQII', message_bytes)
+#         message.sec = time
+#         message.nano = temp[0]
+#         message.refno = temp[1]
+#         message.newrefno = temp[2]
+#         message.shares = temp[3]
+#         message.price = temp[4]
+#     return message
+
+def protocol(message_bytes, message_type, time, version):
+    """Helper method for unpacking binary message data."""
 
     message = Message()
     message.type = message_type
 
-    if message.type == 'T':  # time
-        temp = struct.unpack('>I', message_bytes)
-        message.sec = temp[0]
-        message.nano = 0
-    elif message_type == 'S':  # systems
-        temp = struct.unpack('>Is', message_bytes)
-        message.event = temp[1].decode('ascii')
-        message.sec = time
-        message.nano = temp[0]
-    elif message.type == 'A':  # add
-        temp = struct.unpack('>IQsI8sI', message_bytes)
-        message.sec = time
-        message.nano = temp[0]
-        message.refno = temp[1]
-        message.buysell = temp[2].decode('ascii')
-        message.shares = temp[3]
-        message.name = temp[4].decode('ascii').rstrip(' ')
-        message.price = temp[5]
-    elif message.type == 'F':  # add w/mpid
-        temp = struct.unpack('>IQsI8sI4s', message_bytes)
-        message.sec = time
-        message.nano = temp[0]
-        message.refno = temp[1]
-        message.buysell = temp[2].decode('ascii')
-        message.shares = temp[3]
-        message.name = temp[4].decode('ascii').rstrip(' ')
-        message.price = temp[5]
-    elif message.type == 'E':  # execute
-        temp = struct.unpack('>IQIQ', message_bytes)
-        message.sec = time
-        message.nano = temp[0]
-        message.refno = temp[1]
-        message.shares = temp[2]
-    elif message.type == 'C':  # execute w/price
-        temp = struct.unpack('>IQIQsI', message_bytes)
-        message.sec = time
-        message.nano = temp[0]
-        message.refno = temp[1]
-        message.shares = temp[2]
-        message.price = temp[5]
-    elif message.type == 'X':  # cancel
-        temp = struct.unpack('>IQI', message_bytes)
-        message.sec = time
-        message.nano = temp[0]
-        message.refno = temp[1]
-        message.shares = temp[2]
-    elif message.type == 'D':  # delete
-        temp = struct.unpack('>IQ', message_bytes)
-        message.sec = time
-        message.nano = temp[0]
-        message.refno = temp[1]
-    elif message.type == 'U':  # replace
-        temp = struct.unpack('>IQQII', message_bytes)
-        message.sec = time
-        message.nano = temp[0]
-        message.refno = temp[1]
-        message.newrefno = temp[2]
-        message.shares = temp[3]
-        message.price = temp[4]
-    return message
+    if version == 4.0:
+        if message.type == 'T':  # time
+            temp = struct.unpack('>I', message_bytes)
+            message.sec = temp[0]
+            message.nano = 0
+        elif message_type == 'S':  # systems
+            temp = struct.unpack('>Is', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.event = temp[1].decode('ascii')
+        elif message_type == 'H':
+            temp = struct.unpack('>I6sss4s', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.name = temp[1].decode('ascii').rstrip(' ')
+            message.event = temp[2].decode('ascii')
+        elif message.type == 'A':  # add
+            temp = struct.unpack('>IQsI6sI', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.buysell = temp[2].decode('ascii')
+            message.shares = temp[3]
+            message.name = temp[4].decode('ascii').rstrip(' ')
+            message.price = temp[5]
+        elif message.type == 'F':  # add w/mpid (I ignore mpid, so same as 'A')
+            temp = struct.unpack('>IQsI6sI4s', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.buysell = temp[2].decode('ascii')
+            message.shares = temp[3]
+            message.name = temp[4].decode('ascii').rstrip(' ')
+            message.price = temp[5]
+        elif message.type == 'E':  # execute
+            temp = struct.unpack('>IQIQ', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.shares = temp[2]
+        elif message.type == 'C':  # execute w/price (actually don't need price...)
+            temp = struct.unpack('>IQIQsI', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.shares = temp[2]
+            message.price = temp[5]
+        elif message.type == 'X':  # cancel
+            temp = struct.unpack('>IQI', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.shares = temp[2]
+        elif message.type == 'D':  # delete
+            temp = struct.unpack('>IQ', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+        elif message.type == 'U':  # replace
+            temp = struct.unpack('>IQQII', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.newrefno = temp[2]
+            message.shares = temp[3]
+            message.price = temp[4]
+        elif message.type == 'Q':
+            temp = struct.unpack('>IQ6sIQs', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.shares = temp[1]
+            message.name = temp[2].decode('ascii').rstrip(' ')
+            message.price = temp[3]
+            message.event = temp[5].decode('ascii')
+        return message
+    elif version == 4.1:
+        if message.type == 'T':  # time
+            temp = struct.unpack('>I', message_bytes)
+            message.sec = temp[0]
+            message.nano = 0
+        elif message_type == 'S':  # systems
+            temp = struct.unpack('>Is', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.event = temp[1].decode('ascii')
+        elif message.type == 'H':  # trade-action
+            temp = struct.unpack('>I8sss4s', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.name = temp[1].decode('ascii').rstrip(' ')
+            message.event = temp[2].decode('ascii')
+        elif message.type == 'A':  # add
+            temp = struct.unpack('>IQsI8sI', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.buysell = temp[2].decode('ascii')
+            message.shares = temp[3]
+            message.name = temp[4].decode('ascii').rstrip(' ')
+            message.price = temp[5]
+        elif message.type == 'F':  # add w/mpid
+            temp = struct.unpack('>IQsI8sI4s', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.buysell = temp[2].decode('ascii')
+            message.shares = temp[3]
+            message.name = temp[4].decode('ascii').rstrip(' ')
+            message.price = temp[5]
+        elif message.type == 'E':  # execute
+            temp = struct.unpack('>IQIQ', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.shares = temp[2]
+        elif message.type == 'C':  # execute w/price
+            temp = struct.unpack('>IQIQsI', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.shares = temp[2]
+            message.price = temp[5]
+        elif message.type == 'X':  # cancel
+            temp = struct.unpack('>IQI', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.shares = temp[2]
+        elif message.type == 'D':  # delete
+            temp = struct.unpack('>IQ', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+        elif message.type == 'U':  # replace
+            temp = struct.unpack('>IQQII', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.newrefno = temp[2]
+            message.shares = temp[3]
+            message.price = temp[4]
+        elif message.type == 'Q':  # cross-trade
+            temp = struct.unpack('>IQ8sIQs', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.shares = temp[1]
+            message.name = temp[2].decode('ascii').rstrip(' ')
+            message.price = temp[3]
+            message.event = temp[5].decode('ascii')
+        return message
+    elif version == 5.0:
+        if message.type == 'T':  # time
+            raise ValueError('Time messages not supported in ITCHv5.0.')
+        elif message_type == 'S':  # systems
+            temp = struct.unpack('>HHHIs', message_bytes)
+            message.sec = time
+            message.nano = temp[2] | (temp[3] << 16)
+            message.event = temp[4].decode('ascii')
+        elif message.type == 'H':
+            temp = struct.unpack('>HHHI8sss4s', message_bytes)
+            message.sec = time
+            message.nano = temp[2] | (temp[3] << 16)
+            message.name = temp[4].decode('ascii').rstrip(' ')
+            message.event = temp[5].decode('ascii')
+        elif message.type == 'A':  # add
+            temp = struct.unpack('>HHHIQsI8sI', message_bytes)
+            message.sec = time
+            message.nano = temp[2] | (temp[3] << 16)
+            message.refno = temp[4]
+            message.buysell = temp[5].decode('ascii')
+            message.shares = temp[6]
+            message.name = temp[7].decode('ascii').rstrip(' ')
+            message.price = temp[8]
+        elif message.type == 'F':  # add w/mpid
+            temp = struct.unpack('>HHHIQsI8sI', message_bytes)
+            message.sec = time
+            message.nano = temp[2] | (temp[3] << 16)
+            message.refno = temp[4]
+            message.buysell = temp[5].decode('ascii')
+            message.shares = temp[6]
+            message.name = temp[7].decode('ascii').rstrip(' ')
+            message.price = temp[8]
+        elif message.type == 'E':  # execute
+            temp = struct.unpack('>HHHIQIQ', message_bytes)
+            message.sec = time
+            message.nano = temp[2] | (temp[3] << 16)
+            message.refno = temp[4]
+            message.shares = temp[5]
+        elif message.type == 'C':  # execute w/price
+            temp = struct.unpack('>HHHIQIQsI', message_bytes)
+            message.sec = time
+            message.nano = temp[2] | (temp[3] << 16)
+            message.refno = temp[4]
+            message.shares = temp[5]
+            message.price = temp[8]
+        elif message.type == 'X':  # cancel
+            temp = struct.unpack('>HHHIQI', message_bytes)
+            message.sec = time
+            message.nano = temp[2] | (temp[3] << 16)
+            message.refno = temp[4]
+            message.shares = temp[5]
+        elif message.type == 'D':  # delete
+            temp = struct.unpack('>HHHIQ', message_bytes)
+            message.sec = time
+            message.nano = temp[2] | (temp[3] << 16)
+            message.refno = temp[4]
+        elif message.type == 'U':  # replace
+            temp = struct.unpack('>HHHIQQII', message_bytes)
+            message.sec = time
+            message.nano = temp[2] | (temp[3] << 16)
+            message.refno = temp[4]
+            message.newrefno = temp[5]
+            message.shares = temp[6]
+            message.price = temp[7]
+        elif message.type == 'Q':  # cross-trade
+            temp = struct.unpack('>HHHI', message_bytes)
+            message.sec = time
+            message.nano = temp[2] | (temp[3] << 16)
+            message.shares = temp[4]
+            message.name = temp[5].decode('ascii').rstrip(' ')
+            message.price = temp[6]
+            message.event = temp[8].decode('ascii')
+        return message
+    else:
+        raise ValueError('ITCH version ' + str(version) + ' is not supported')
 
 def import_names():
     names = []
