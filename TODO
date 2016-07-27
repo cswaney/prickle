@@ -12,8 +12,6 @@
   - Make this an option (e.g. log=True).
 
 
-- Replace message shares can change.
-- Docstrings.
 - Cross-trade messae handling.
 - Database should completely write over previous database?
   - If you try to write over existing with same name you will get an error because the size of the datasets don't agree. You need to delete the old dataset, then initialize the new one.
