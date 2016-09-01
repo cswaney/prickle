@@ -49,11 +49,11 @@ class Postgres():
 
         # create column info
         msg_sql = """create table messages (date varchar,
+                                            name varchar,
                                             sec integer,
                                             nano integer,
                                             type varchar,
                                             event varchar,
-                                            name varchar,
                                             buysell varchar,
                                             price integer,
                                             shares integer,
@@ -61,12 +61,12 @@ class Postgres():
                                             newrefno integer)"""
 
         cols = ['date date',
+                'name varchar',
                 'sec integer',
-                'nano integer',
-                'name varchar']
-        cols.extend(['bid_prc_' + str(i) + ' integer' for i in range(nlevels,0,-1)])
+                'nano integer']
+        cols.extend(['bid_prc_' + str(i) + ' integer' for i in range(1,nlevels+1)])
         cols.extend(['ask_prc_' + str(i) + ' integer' for i in range(1,nlevels+1)])
-        cols.extend(['bid_vol_' + str(i) + ' integer' for i in range(nlevels,0,-1)])
+        cols.extend(['bid_vol_' + str(i) + ' integer' for i in range(1,nlevels+1)])
         cols.extend(['ask_vol_' + str(i) + ' integer' for i in range(1,nlevels+1)])
         col_sql = ', '.join(cols)
         book_sql = 'create table orderbooks (' + col_sql + ')'
@@ -86,7 +86,7 @@ class Postgres():
                 except pg.Error as e:
                     print(e.pgerror)
             conn.close()
-            print('Created a new PostgreSqL database.')
+            print('Created a new PostgreSQL database.')
         except pg.Error as e:
             print('ERROR: unable to connect to database.')
 
@@ -115,13 +115,14 @@ class Message():
 
     """
 
-    def __init__(self, sec=-1, nano=-1, type='.', event='.', name='.',
+    def __init__(self, date='.', sec=-1, nano=-1, type='.', event='.', name='.',
                  buysell='.', price=-1, shares=0, refno=-1, newrefno=-1):
+        self.date = date
+        self.name = name
         self.sec = sec
         self.nano = nano
         self.type = type
         self.event = event
-        self.name = name
         self.buysell = buysell
         self.price = price
         self.shares = shares
@@ -159,25 +160,34 @@ class Message():
     def split(self):
         """Converts a replace message to an add and a delete."""
         if self.type == 'U':
-            del_message = Message(sec=self.sec, nano=self.nano, type='D',
-                                     refno=self.refno, newrefno=-1)
-            add_message = Message(sec=self.sec, nano=self.nano, type='U',
-                                  price=self.price, shares=self.shares,
-                                  refno=self.refno, newrefno=self.newrefno)
+            del_message = Message(date=self.date,
+                                  sec=self.sec,
+                                  nano=self.nano,
+                                  type='D',
+                                  refno=self.refno,
+                                  newrefno=-1)
+            add_message = Message(date=self.date,
+                                  sec=self.sec,
+                                  nano=self.nano,
+                                  type='U',
+                                  price=self.price,
+                                  shares=self.shares,
+                                  refno=self.refno,
+                                  newrefno=self.newrefno)
             return (del_message, add_message)
         else:
             print('Warning: "split" method called on non-replacement messages.')
 
-    def to_list(self, date):
+    def to_list(self):
         """Returns message as a list."""
 
         values = []
-        values.append(str(date))
+        values.append(str(self.date))
+        values.append(str(self.name))
         values.append(int(self.sec))
         values.append(int(self.nano))
         values.append(str(self.type))
         values.append(str(self.event))
-        values.append(str(self.name))
         values.append(str(self.buysell))
         values.append(int(self.price))
         values.append(int(self.shares))
@@ -261,8 +271,9 @@ class Messagelist():
 
     """
 
-    def __init__(self, names):
+    def __init__(self, date, names):
         self.messages = {}
+        self.date = date
         for name in names:
             self.messages[name] = []
 
@@ -284,28 +295,24 @@ class Messagelist():
         db.messages[name].resize((db_resize,db_cols))
         db.messages[name][db_size:db_resize,:] = array
         self.messages[name] = []  # reset
-        # print('wrote {} lines to dataset {}'.format(array_size,
-                                                    # db.messages[name]))
+        print('wrote {} messages to dataset (name={})'.format(len(m), name))
 
-    def to_postgres(self, date, name, db):
+    def to_postgres(self, name, db):
         """Write messages to PostgreSQL database."""
-        # connect to postgres
         db.open()
-        # get the message list for name
         m = self.messages[name]
-        # convert the messages to a list of lists
-        listed = [message.to_list(date) for message in m]
-        # write the messages/lists to the db
+        listed = [message.to_list() for message in m]
         with db.conn.cursor() as cursor:
             for message in listed:
                 try:
-                    cursor.execute('insert into messages values%s;', [tuple(message)])  # %s becomes "(x,..., x)"
+                    cursor.execute('insert into messages values%s;',
+                                   [tuple(message)])  # %s becomes "(x,..., x)"
                 except pg.Error as e:
                     print(e.pgerror)
         db.conn.commit()
         db.close()
         self.messages[name] = [] # reset
-        print('wrote {} lines to messages table for name {}'.format(len(m), name))
+        print('wrote {} messages to table (name={})'.format(len(m), name))
 
 class Order():
     """A class to represent limit orders.
@@ -422,12 +429,14 @@ class Book():
 
     """
 
-    def __init__(self, levels):
+    def __init__(self, date, name, levels):
         self.bids = {}
         self.asks = {}
         self.levels = levels
         self.sec = -1
         self.nano = -1
+        self.date = date
+        self.name = name
 
     def __str__(self):
         sep = ', '
@@ -489,13 +498,13 @@ class Book():
                     self.asks[message.price] = message.shares
         return self
 
-    def to_list(self, date, name):
+    def to_list(self):
         """Return order book as a list."""
         values = []
-        values.append(date)
+        values.append(self.date)
+        values.append(self.name)
         values.append(int(self.sec))
         values.append(int(self.nano))
-        values.append(name)
         sorted_bids = sorted(self.bids.keys(), reverse=True)
         sorted_asks = sorted(self.asks.keys())
         for i in range(0, self.levels): # bid price
@@ -564,51 +573,46 @@ class Booklist():
 
     """
 
-    def __init__(self, names, levels):
+    def __init__(self, date, names, levels, method):
         self.books = {}
+        self.method = method
         for name in names:
-            self.books[name] = {'hist':[], 'cur':Book(levels)}
+            self.books[name] = {'hist':[], 'cur':Book(date, name, levels)}
 
     def update(self, message):
         """Update order book data from message."""
         b = self.books[message.name]['cur'].update(message)
-        self.books[message.name]['hist'].append(b)
+        if self.method == 'hdf5':
+            self.books[message.name]['hist'].append(b.to_array())
+        if self.method == 'postgres':
+            self.books[message.name]['hist'].append(b.to_list())
 
     def to_hdf5(self, name, db):
         """Write order books to HDF5 file."""
-        ob = self.books[name]['hist']
-        listed = [book.to_array() for book in ob]
-        array = np.array(listed)
+        hist = self.books[name]['hist']
+        array = np.array(hist)
         db_size, db_cols = db.orderbooks[name].shape  # rows
         array_size, array_cols = array.shape
         db_resize = db_size + array_size
         db.orderbooks[name].resize((db_resize,db_cols))
         db.orderbooks[name][db_size:db_resize,:] = array
-        self.books[name]['cur'] = ob[-1]  # reset
         self.books[name]['hist'] = []  # reset
-        # print('wrote {} lines to dataset {}'.format(array_size,
-                                                    # db.orderbooks[name]))
+        print('wrote {} books to dataset (name={})'.format(len(hist), name))
 
-    def to_postgres(self, date, name, db):
+    def to_postgres(self, name, db):
         """Write order books to PostgreSQL database."""
-        # connect to postgres
         db.open()
-        # get the message list for name
-        ob = self.books[name]['hist']
-        # convert the messages to a list of lists
-        listed = [book.to_list(date=date, name=name) for book in ob]
-        # write the messages/lists to the db
+        hist = self.books[name]['hist']
         with db.conn.cursor() as cursor:
-            for book in listed:
+            for book in hist:
                 try:
                     cursor.execute('insert into orderbooks values%s;', [tuple(book)])  # %s becomes "(x,..., x)"
                 except pg.Error as e:
                     print(e.pgerror)
         db.conn.commit()
         db.close()
-        self.books[name]['cur'] = ob[-1]  # reset
         self.books[name]['hist'] = []  # reset
-        print('wrote {} lines to orderbooks table for name {}'.format(len(ob),name))
+        print('wrote {} books to table (name={})'.format(len(hist),name))
 
 def get_message_size(size_in_bytes):
     """Return number of bytes in binary message as an integer."""
@@ -619,13 +623,14 @@ def get_message_type(type_in_bytes):
     """Return the type of a binary message as a string."""
     return type_in_bytes.decode('ascii')
 
-def get_message(message_bytes, message_type, time, version):
+def get_message(message_bytes, message_type, date, time, version):
     """Return binary message data as a Message."""
     if message_type in ('T', 'S', 'H', 'A', 'F', 'E', 'C', 'X', 'D', 'U', 'Q'):
         message = protocol(message_bytes, message_type, time, version)
         if version == 5.0:
             message.sec = int(message.nano / 10**9)
             message.nano = message.nano % 10**9
+        message.date = date
         return message
     else:
         return None
@@ -861,7 +866,7 @@ def protocol(message_bytes, message_type, time, version):
     else:
         raise ValueError('ITCH version ' + str(version) + ' is not supported')
 
-def unpack(fin, ver, date, fout, nlevels, names, method=None):
+def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, user=None):
     """Read ITCH data file, construct LOB, and write to database.
 
     This method reads binary data from ITCH dat file, converts it into human-readable data, then saves time series of out-going messages as well as reconstructed order book snapshots to research databases.
@@ -872,13 +877,13 @@ def unpack(fin, ver, date, fout, nlevels, names, method=None):
 
     MAXROWS = 10**4
     orderlist = Orderlist()
-    booklist = Booklist(names, nlevels)
-    messagelist = Messagelist(names)
+    booklist = Booklist(date, names, nlevels, method)
+    messagelist = Messagelist(date, names)
 
     if method == 'hdf5':
         db = Database(fout, names, nlevels)
     elif method == 'postgres':
-        db = Postgres(host='localhost', user='colinswaney', nlevels=nlevels)
+        db = Postgres(host=host, user=user, nlevels=nlevels)
     elif method == 'csv':
         pass
     else:
@@ -900,20 +905,20 @@ def unpack(fin, ver, date, fout, nlevels, names, method=None):
         message_size = get_message_size(data.read(2))
         message_type = get_message_type(data.read(1))
         message_bytes = data.read(message_size - 1)
-        message = get_message(message_bytes, message_type, clock, ver)
+        message = get_message(message_bytes, message_type, date, clock, ver)
         messagecount += 1
 
         # update clock
         if message_type == 'T':
-            if message.sec % 60 == 0:
+            # if message.sec % 60 == 0:
                 # print('TIME={}'.format(message.sec))
-                pass
+                # pass
             clock = message.sec
 
         # update system
         if message_type == 'S':
             print('SYSTEM MESSAGE: {}'.format(message.event))
-            if message.event == 'Q':  # start system
+            if message.event == 'Q':  # start market
                 writing = True
             elif message.event == 'M':  # end market
                 reading = False
@@ -963,112 +968,86 @@ def unpack(fin, ver, date, fout, nlevels, names, method=None):
         if method == 'hdf5':
             if message_type == 'U':
                 if del_message.name in names:
-                    # update messages
                     messagelist.add(del_message)
                     # print('{} message added to list'.format(del_message.type))
                     msgs = len(messagelist.messages[del_message.name])
                     if msgs == MAXROWS:
                         messagelist.to_hdf5(name=del_message.name, db=db)
-                        # input('Press any button to continue.')
-                    # update books
                     booklist.update(del_message)
                     # print('{} book was updated.'.format(del_message.name))
                     bks = len(booklist.books[del_message.name]['hist'])
                     if bks == MAXROWS:
                         booklist.to_hdf5(name=del_message.name, db=db)
-                        # input('Press any button to continue.')
                 if add_message.name in names:
-                    # update messages
                     messagelist.add(add_message)
                     # print('{} message added to list'.format(add_message.type))
                     msgs = len(messagelist.messages[add_message.name])
                     if msgs == MAXROWS:
                         messagelist.to_hdf5(name=add_message.name, db=db)
-                        # input('Press any button to continue.')
-                    # update books
                     booklist.update(add_message)
                     # print('{} book was updated.'.format(add_message.name))
-                    bks = bks = len(booklist.books[add_message.name]['hist'])
+                    bks = len(booklist.books[add_message.name]['hist'])
                     if bks == MAXROWS:
                         booklist.to_hdf5(name=add_message.name, db=db)
-                        # input('Press any button to continue.')
             elif message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
                 if message.name in names:
-                    # update messages
                     messagelist.add(message)
                     # print('{} message added to list'.format(message.type))
                     msgs = len(messagelist.messages[message.name])
                     if msgs == MAXROWS:
                         messagelist.to_hdf5(name=message.name, db=db)
-                        # input('Press any button to continue.')
-                    # update books
                     booklist.update(message)
                     # print('{} book was updated.'.format(message.name))
                     bks = len(booklist.books[message.name]['hist'])
                     if bks == MAXROWS:
                         booklist.to_hdf5(name=message.name, db=db)
-                        # input('Press any button to continue.')
         elif method == 'postgres':
             if message_type == 'U':
-                if del_message.name in namelist:
-                    # update messages
+                if del_message.name in names:
                     messagelist.add(del_message)
                     # print('{} message added to list'.format(del_message.type))
                     msgs = len(messagelist.messages[del_message.name])
                     if msgs == MAXROWS:
-                        messagelist.to_postgres(date=date,
-                                                name=del_message.name,
-                                                db=db)
-                    # update books
+                        messagelist.to_postgres(name=del_message.name, db=db)
                     booklist.update(del_message)
                     # print('{} book was updated.'.format(del_message.name))
                     bks = len(booklist.books[del_message.name]['hist'])
                     if bks == MAXROWS:
-                        booklist.to_postgres(date=date,
-                                             name=del_message.name,
-                                             db=db)
-                if add_message.name in namelist:
-                    # update messages
+                        booklist.to_postgres(name=del_message.name, db=db)
+                if add_message.name in names:
                     messagelist.add(add_message)
                     # print('{} message added to list'.format(add_message.type))
                     msgs = len(messagelist.messages[add_message.name])
                     if msgs == MAXROWS:
-                        messagelist.to_postgres(date=date,
-                                                name=add_message.name,
-                                                db=db)
-                    # update books
+                        messagelist.to_postgres(name=add_message.name, db=db)
                     booklist.update(add_message)
                     # print('{} book was updated.'.format(add_message.name))
                     bks = len(booklist.books[add_message.name]['hist'])
                     if bks == MAXROWS:
-                        booklist.to_postgres(date=date,
-                                             name=add_message.name,
-                                             db=db)
+                        booklist.to_postgres(name=add_message.name, db=db)
             elif message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
-                if message.name in namelist:
-                    # update messages
+                if message.name in names:
                     messagelist.add(message)
                     # print('{} message added to list'.format(message.type))
                     msgs = len(messagelist.messages[message.name])
                     if msgs == MAXROWS:
-                        messagelist.to_postgres(date=date,
-                                                name=message.name,
-                                                db=db)
-                    # update books
+                        messagelist.to_postgres(name=message.name, db=db)
                     booklist.update(message)
                     # print('{} book was updated.'.format(message.name))
                     bks = len(booklist.books[message.name]['hist'])
                     if bks == MAXROWS:
-                        booklist.to_postgres(date=date,
-                                             name=message.name,
-                                             db=db)
+                        booklist.to_postgres(name=message.name, db=db)
         elif method == 'csv':
             pass
 
     # clean up
     for name in names:
-        messagelist.to_hdf5(name=name, db=db)
-        booklist.to_hdf5(name=name, db=db)
+        if method == 'hdf5':
+            messagelist.to_hdf5(name=name, db=db)
+            booklist.to_hdf5(name=name, db=db)
+        elif method == 'postgres':
+            messagelist.to_postgres(name=name, db=db)
+            booklist.to_postgres(name=name, db=db)
 
     stop = time.time()
 
@@ -1078,7 +1057,7 @@ def unpack(fin, ver, date, fout, nlevels, names, method=None):
     print('Elapsed time: {} seconds'.format(stop - start))
     print('Messages read: {}'.format(messagecount))
 
-def load(db, name):
+def load_hdf5(db, name):
     """Read data from database and return pd.DataFrames."""
     try:
         with h5py.File(db, 'r') as f: # read, file must exist
@@ -1126,6 +1105,71 @@ def load(db, name):
             return (df_message, df_price, df_volume)
     except OSError as e:
         print('Could not find file {}'.format(path))
+
+def load_postgres(host, user, name, date):
+    """Read data from PostgreSQL database and return pd.DataFrames."""
+
+    msg_sql = """
+    select *
+    from messages
+    where name = %s
+    and date = %s
+    order by sec, nano
+    """
+
+    book_sql = """
+    select *
+    from orderbooks
+    where name = %s
+    and date = %s
+    order by sec, nano
+    """
+
+    # open connection to database
+    try:
+        conn = pg.connect(host=host, user=user)
+        with conn.cursor() as cur:
+            try:  # select message data
+                cur.execute(msg_sql, [name, date])
+                conn.commit()
+                columns = ['date',
+                           'sec',
+                           'nano',
+                           'type',
+                           'event',
+                           'name',
+                           'buysell',
+                           'price',
+                           'shares',
+                           'refno',
+                           'newrefno']
+                df_message = pd.DataFrame(cur.fetchall(), columns=columns)
+            except pg.Error as e:
+                print(e.pgerror)
+            try:  # select order book data
+                cur.execute(book_sql, [name, date])
+                conn.commit()
+                df_book = pd.DataFrame(cur.fetchall())
+                nlevels = int((df_book.shape[1] - 2) / 4)
+                base_columns = [str(i) for i in list(range(1, nlevels + 1))]
+                info_columns = ['date', 'sec', 'nano', 'name']
+                price_columns = ['bidprc.' + i for i in base_columns]
+                volume_columns = ['bidvol.' + i for i in base_columns]
+                price_columns.extend(['askprc.' + i for i in base_columns])
+                volume_columns.extend(['askvol.' + i for i in base_columns])
+                columns = info_columns + price_columns + volume_columns
+                df_book.columns = columns
+                df_time = df_book.loc[:, ('sec', 'nano')]
+                df_price = df_book.loc[:, price_columns]
+                df_volume = df_book.loc[:, volume_columns]
+                df_price = pd.concat([df_time, df_price], axis=1)
+                df_volume = pd.concat([df_time, df_volume], axis=1)
+            except pg.Error as e:
+                print(e.pgerror)
+        conn.close()
+        return (df_message, df_price, df_volume)
+    except pg.Error as e:
+        print('ERROR: unable to connect to database.')
 
 def interpolate(data, tstep):
     """Interpolate limit order data.

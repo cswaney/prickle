@@ -49,6 +49,8 @@ coverage.xml
 tests/
 nose2
 nose2/
+postgres.py
+hdf5.py
 
 # Translations
 *.mo
