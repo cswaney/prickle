@@ -6,7 +6,9 @@ import h5py
 import time
 
 class Database():
-    """An HDF5 database to store message and order book data."""
+    """An HDF5 database to store message and order book data.
+
+    """
 
     def __init__(self, path, names, nlevels):
         # open file, create otherwise
@@ -869,9 +871,9 @@ def protocol(message_bytes, message_type, time, version):
 def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, user=None):
     """Read ITCH data file, construct LOB, and write to database.
 
-    This method reads binary data from ITCH dat file, converts it into human-readable data, then saves time series of out-going messages as well as reconstructed order book snapshots to research databases.
+    This method reads binary data from a ITCH data file, converts it into human-readable data, then saves time series of out-going messages as well as reconstructed order book snapshots to a research database.
 
-    The version number of the ITCH data must be specified as a float. Supported versions are: 4.0, 4.1, and 5.0.
+    The version number of the ITCH data is specified as a float. Supported versions are: 4.0, 4.1, and 5.0.
 
     """
 
