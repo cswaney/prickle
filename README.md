@@ -17,12 +17,12 @@ HFT Tools creates scalable, research-ready databases from NASDAQ HistoricalView-
 
 ### Requirements
 
-You will need the following to create databases (and are **not** installed automatically):
+You will need the following to create databases (these are **not** installed automatically):
 
 1. [HDF5](https://www.hdfgroup.org).
 2. [PostgreSQL](https://www.postgresql.org)
 
-If you're a Python user, simply install using the Python package manager:
+After you have installed and configured these, simply install using the Python package manager:
 
 ```
 pip install hfttools
