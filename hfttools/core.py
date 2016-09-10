@@ -6,7 +6,16 @@ import h5py
 import time
 
 class Database():
-    """An HDF5 database to store message and order book data.
+    """Connection to an HDF5 database storing message and order book data.
+
+    Parameters
+    ----------
+    path : string
+        Specifies location of the HDF5 file
+    names : list
+        Contains the stock tickers to include in the database
+    nlevels : int
+        Specifies the number of levels to include in the order book data
 
     """
 
@@ -41,7 +50,18 @@ class Database():
         self.file.close()
 
 class Postgres():
-    """A PostgreSQL database to store message and order book data. """
+    """A connection to a PostgreSQL database to storing message and order book data.
+
+    Parameters
+    ----------
+    host : string
+        Host for the Postgres connection
+    user : string
+        Username for the Postgres connection
+    nlevels : int
+        Specifies the number of levels to include in the order book data
+
+    """
 
     def __init__(self, host, user, nlevels):
 
@@ -99,21 +119,30 @@ class Postgres():
         self.conn.close()
 
 class Message():
-    """A class to represent messages.
+    """A class representing out-going messages from the NASDAQ system.
 
-    A class representing out-going messages from the NASDAQ system.
-
-    Attributes:
-        sec (int): seconds
-        nano (int): nano seconds
-        type (str): message type
-        event (str): system event
-        name (str): stock ticker
-        buysell (str): buy or sell
-        price (int): price
-        shares (int): shares
-        refno (int): reference number
-        newrefno (int): replacement reference number
+    Parameters
+    ----------
+    sec : int
+        Seconds
+    nano : int
+        Nanoseconds
+    type : string
+        Message type
+    event : string
+        System event
+    name : string
+        Stock ticker
+    buysell : string
+        Trade position
+    price : int
+        Trade price
+    shares : int
+        Shares
+    refno : int
+        Unique reference number of order
+    newrefno : int
+        Replacement reference number
 
     """
 
@@ -263,13 +292,23 @@ class Messagelist():
 
     Provides methods for writing to HDF5 and PostgreSQL databases.
 
-    Example:
-        Create a MessageList::
+    Parameters
+    ----------
+    date : string
+        Date to be assigned to data
+    names : list
+        Contains the stock tickers to include in the database
 
-            >> msglist = hft.Messagelist(['GOOG', 'AAPL'])
+    Attributes
+    ----------
+    messages : dict
+        Contains a Message objects for each name in names
 
-    Attributes:
-        messages (list): list of Messages.
+    Examples
+    --------
+    Create a MessageList::
+
+    >> msglist = hft.Messagelist(date='01012013', names=['GOOG', 'AAPL'])
 
     """
 
@@ -319,13 +358,18 @@ class Messagelist():
 class Order():
     """A class to represent limit orders.
 
-    Store message primary data for order book reconstruction.
+    Stores essential message data for order book reconstruction.
 
-    Attributes:
-        name (str): stock ticker
-        buysell (str): buy or sell
-        price (int): price
-        shares (int): shares
+    Attributes
+    ----------
+    name : string
+        Stock ticker
+    buysell : string
+        Trade position
+    price : int
+        Trade price
+    shares : int
+        Shares
 
     """
 
@@ -356,8 +400,10 @@ class Orderlist():
 
     This class handles the matching of messages to standing orders. Incoming messages are first matched to standing orders so that missing message data can be completed, and then the referenced order is updated based on the message.
 
-    Attributes:
-        orders (dict): keys are reference numbers, values are Orders.
+    Attributes
+    ----------
+    orders : dict
+        Keys are reference numbers, values are Orders.
 
     """
 
@@ -373,7 +419,7 @@ class Orderlist():
 
     # updates message by reference.
     def complete_message(self, message):
-        """Look up order for message and fill in missing data."""
+        """Look up Order for Message and fill in missing data."""
         if message.refno in self.orders.keys():
             # print('complete_message received message: {}'.format(message.type))
             ref_order = self.orders[message.refno]
@@ -395,7 +441,7 @@ class Orderlist():
                 message.shares = -ref_order.shares
 
     def add(self, message):
-        """Add a new order to the list."""
+        """Add a new Order to the list."""
         order = Order()
         order.name = message.name
         order.buysell = message.buysell
@@ -404,7 +450,7 @@ class Orderlist():
         self.orders[message.refno] = order
 
     def update(self, message):
-        """Update an existing order based on incoming message."""
+        """Update an existing Order based on incoming Message."""
         if message.refno in self.orders.keys():
             if message.type == 'E': # execute
                 self.orders[message.refno].shares += message.shares
@@ -422,12 +468,18 @@ class Book():
 
     This class provides a method for updating the state of an order book from an incoming message.
 
-    Attributes:
-        bids (dict): keys are prices, values are shares
-        asks (dict): keys are prices, values are shares
-        levels (int): levels of the the order book to track
-        sec (int): seconds
-        nano (int): nanoseconds
+    Attributes
+    ----------
+    bids : dict
+        Keys are prices, values are shares
+    asks : dict
+        Keys are prices, values are shares
+    levels : int
+        Number of levels of the the order book to track
+    sec : int
+        Seconds
+    nano : int
+        Nanoseconds
 
     """
 
@@ -479,7 +531,7 @@ class Book():
         return 'Book( \n' + 'bids: ' + sep.join(bid_list) + '\n' + 'asks: ' + sep.join(ask_list) + ' )'
 
     def update(self, message):
-        """Update order book using incoming message data."""
+        """Update Order using incoming Message data."""
         self.sec = message.sec
         self.nano = message.nano
         if message.buysell == 'B':
@@ -501,7 +553,7 @@ class Book():
         return self
 
     def to_list(self):
-        """Return order book as a list."""
+        """Return Order as a list."""
         values = []
         values.append(self.date)
         values.append(self.name)
@@ -532,7 +584,7 @@ class Book():
         return values
 
     def to_array(self):
-        '''Return order book as numpy array.'''
+        '''Return Order as numpy array.'''
         values = []
         values.append(int(self.sec))
         values.append(int(self.nano))
@@ -561,17 +613,22 @@ class Book():
         return np.array(values)
 
 class Booklist():
-    """A class to store order books.
+    """A class to store Books.
 
     Provides methods for writing to external databases.
 
-    Example:
-        Create a Booklist::
+    Examples
+    --------
+    Create a Booklist::
 
-            >> booklist = hft.BookList(['GOOG', 'AAPL'], levels=10)
+    >> booklist = hft.BookList(['GOOG', 'AAPL'], levels=10)
 
-    Attributes:
-        books (list): list of Books.
+    Attributes
+    ----------
+    books : list
+        A list of Books
+    method : string
+        Specifies the type of database to create ('hdf5' or 'postgres')
 
     """
 
@@ -582,7 +639,7 @@ class Booklist():
             self.books[name] = {'hist':[], 'cur':Book(date, name, levels)}
 
     def update(self, message):
-        """Update order book data from message."""
+        """Update Book data from message."""
         b = self.books[message.name]['cur'].update(message)
         if self.method == 'hdf5':
             self.books[message.name]['hist'].append(b.to_array())
@@ -590,7 +647,7 @@ class Booklist():
             self.books[message.name]['hist'].append(b.to_list())
 
     def to_hdf5(self, name, db):
-        """Write order books to HDF5 file."""
+        """Write Book data to HDF5 file."""
         hist = self.books[name]['hist']
         array = np.array(hist)
         db_size, db_cols = db.orderbooks[name].shape  # rows
@@ -602,7 +659,7 @@ class Booklist():
         print('wrote {} books to dataset (name={})'.format(len(hist), name))
 
     def to_postgres(self, name, db):
-        """Write order books to PostgreSQL database."""
+        """Write Book data to PostgreSQL database."""
         db.open()
         hist = self.books[name]['hist']
         with db.conn.cursor() as cursor:
