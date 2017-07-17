@@ -146,11 +146,12 @@ class Message():
         Unique reference number of order
     newrefno : int
         Replacement reference number
-
+    mpid: string
+        MPID attribution
     """
 
     def __init__(self, date='.', sec=-1, nano=-1, type='.', event='.', name='.',
-                 buysell='.', price=-1, shares=0, refno=-1, newrefno=-1):
+                 buysell='.', price=-1, shares=0, refno=-1, newrefno=-1, mpid='.'):
         self.date = date
         self.name = name
         self.sec = sec
@@ -162,6 +163,7 @@ class Message():
         self.shares = shares
         self.refno = refno
         self.newrefno = newrefno
+        self.mpid = mpid
 
     def __str__(self):
         sep = ', '
@@ -174,7 +176,8 @@ class Message():
                 'price=' + str(self.price),
                 'shares=' + str(self.shares),
                 'refno=' + str(self.refno),
-                'newrefno=' + str(self.newrefno)]
+                'newrefno=' + str(self.newrefno),
+                'mpid= {}'.format(self.mpid)]
         return sep.join(line)
 
     def __repr__(self):
@@ -188,7 +191,8 @@ class Message():
                 'price: ' + str(self.price),
                 'shares: ' + str(self.shares),
                 'refno: ' + str(self.refno),
-                'newrefno: ' + str(self.newrefno)]
+                'newrefno: ' + str(self.newrefno),
+                'mpid: {}'.format(self.mpid)]
         return 'Message(' + sep.join(line) + ')'
 
     def split(self):
@@ -227,6 +231,7 @@ class Message():
         values.append(int(self.shares))
         values.append(int(self.refno))
         values.append(int(self.newrefno))
+        values.append(int(self.mpid))
         return values
 
     def to_array(self):
@@ -252,6 +257,8 @@ class Message():
             values.append(6)
         elif self.type == 'U':  # replace
             values.append(7)
+        elif self.type == 'P':  # trade (hidden)
+            values.append(8)
         else:
             values.append(-1)  # other (ignored)
 
@@ -358,6 +365,181 @@ class Messagelist():
         db.close()
         self.messages[name] = [] # reset
         print('wrote {} messages to table (name={})'.format(len(m), name))
+
+class NOIIMessage():
+    """A class representing out-going messages from the NASDAQ system.
+       This class is specific to net order imbalance indicator messages and
+       cross trade messages.
+
+    Parameters
+    ----------
+    sec: int
+        Seconds
+    nano: int
+        Nanoseconds
+    name: string
+        Stock ticker
+    type: string
+        Message type
+    cross: string
+        Cross type
+    buysell: string
+        Trade position
+    price: int
+        Trade price
+    shares: int
+        Shares
+    matchno: int
+        Unique reference number of trade
+    paired: int
+        Shares paired
+    imbalance: int
+        Shares imbalance
+    direction: string
+        Imbalance direction
+    far: int
+        Far price
+    near: int
+        Near price
+    current: int
+        Current refernce price
+
+    """
+
+    def __init__(self, date='.', sec=-1, nano=-1, name='.', type='.', cross='.',
+                 buysell='.', price=-1, shares=0, matchno=-1, paired=-1,
+                 imbalance=-1, direction='.', far=-1, near=-1, current=-1):
+        self.date = date
+        self.sec = sec
+        self.nano = nano
+        self.name = name
+        self.type = type
+        self.cross = cross
+        self.buysell = buysell
+        self.price = price
+        self.shares = shares
+        self.matchno = refno
+        self.paired = paired
+        self.imbalance = imbalance
+        self.direction = direction
+        self.far = far
+        self.near = near
+        self.current = current
+
+    def __str__(self):
+        sep = ', '
+        line = ['date' + str(self.date),
+                'sec=' + str(self.sec),
+                'nano=' + str(self.nano),
+                'name=' + str(self.name),
+                'type=' + str(self.type),
+                'cross=' + str(self.cross),
+                'buysell=' + str(self.buysell),
+                'price=' + str(self.price),
+                'shares=' + str(self.shares),
+                'matchno=' + str(self.refno),
+                'paired=' + str(self.paired),
+                'imbalance=' + str(self.imbalance),
+                'direction=' + str(self.direction),
+                'far=' + str(self.far),
+                'near=' + str(self.near),
+                'current=' + str(self.current)]
+        return sep.join(line)
+
+    def __repr__(self):
+        sep = ', '
+        line = ['date' + str(self.date),
+                'sec=' + str(self.sec),
+                'nano=' + str(self.nano),
+                'name=' + str(self.name),
+                'type=' + str(self.type),
+                'cross=' + str(self.cross),
+                'buysell=' + str(self.buysell),
+                'price=' + str(self.price),
+                'shares=' + str(self.shares),
+                'matchno=' + str(self.refno),
+                'paired=' + str(self.paired),
+                'imbalance=' + str(self.imbalance),
+                'direction=' + str(self.direction),
+                'far=' + str(self.far),
+                'near=' + str(self.near),
+                'current=' + str(self.current)]
+        return 'Message(' + sep.join(line) + ')'
+
+    def to_list(self):
+        """Returns message as a list."""
+
+        values = []
+        values.append(str(self.date))
+        values.append(int(self.sec))
+        values.append(int(self.nano))
+        values.append(str(self.name))
+        values.append(str(self.type))
+        values.append(str(self.cross))
+        values.append(str(self.buysell))
+        values.append(int(self.price))
+        values.append(int(self.shares))
+        values.append(int(self.matchno))
+        values.append(int(self.paired))
+        values.append(int(self.imbalance))
+        values.append(int(self.direction))
+        values.append(int(self.far))
+        values.append(int(self.near))
+        values.append(int(self.current))
+        return values
+
+    def to_array(self):
+        """Returns message as an np.array of integers."""
+
+        values = []
+        values.append(int(self.sec))
+        values.append(int(self.nano))
+
+        if self.type == 'Q':  # cross trade
+            values.append(0)
+        elif self.type == 'I':  # noii
+            values.append(1)
+        else:
+            values.append(-1)  # other (ignored)
+            print('Unexpected NOII message type: {}'.format(self.type))
+
+        if self.cross == 'O':    # opening cross
+            values.append(0)
+        elif self.cross == 'C':  # closing cross
+            values.append(1)
+        elif self.cross == 'H':  # halted cross
+            values.append(2)
+        elif self.cross == 'I':  # intraday cross
+            values.append(3)
+        else:
+            print('Unexpected cross type: {}'.format(self.cross))
+            values.append(-1)  # mistake occurred
+
+        if self.buysell == 'B':  # bid
+            values.append(1)
+        elif self.buysell == 'S':  # ask
+            values.append(-1)
+        else:
+            values.append(0)
+
+        values.append(int(self.price))
+        values.append(int(self.shares))
+        values.append(int(self.matchno))
+        values.append(int(self.paired))
+        values.append(int(self.imbalance))
+
+        if self.direction == 'B':  # bid
+            values.append(1)
+        elif self.direction == 'S':  # ask
+            values.append(-1)
+        else:
+            values.append(0)
+
+        values.append(int(self.far))
+        values.append(int(self.near))
+        values.append(int(self.current))
+
+        return np.array(values)
 
 class Order():
     """A class to represent limit orders.
@@ -689,7 +871,7 @@ def get_message_type(type_in_bytes):
 
 def get_message(message_bytes, message_type, date, time, version):
     """Return binary message data as a Message."""
-    if message_type in ('T', 'S', 'H', 'A', 'F', 'E', 'C', 'X', 'D', 'U', 'Q'):
+    if message_type in ('T', 'S', 'H', 'A', 'F', 'E', 'C', 'X', 'D', 'U', 'Q', 'P'):
         message = protocol(message_bytes, message_type, time, version)
         if version == 5.0:
             message.sec = int(message.nano / 10**9)
@@ -813,6 +995,7 @@ def protocol(message_bytes, message_type, time, version):
             message.shares = temp[3]
             message.name = temp[4].decode('ascii').rstrip(' ')
             message.price = temp[5]
+            message.mpid = temp[6].decode('ascii').rstrip(' ')
         elif message.type == 'E':  # execute
             temp = struct.unpack('>IQIQ', message_bytes)
             message.sec = time
@@ -862,7 +1045,7 @@ def protocol(message_bytes, message_type, time, version):
             message.shares = temp[3]
             message.name = temp[4].decode('ascii').rstrip(' ')
             message.price = temp[5]
-            message.matchno = temp[6]
+            # message.matchno = temp[6]
         return message
     elif version == 5.0:
         if message.type == 'T':  # time
@@ -1004,14 +1187,14 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
                 pass  # resume trading
             input('PAUSED (press any button to continue).')
 
-        if message_type == 'H':
-            # print('TRADE-ACTION MESSAGE: {}'.format(message.event))
-            if message.event in ('H','P','V'):
-                pass  # remove message.name from names
-            elif message.event == 'T':
-                pass  # add message.name to names (check that it isn't there already)
-            elif message.event in ('Q','R'):
-                pass  # quote only (only accepting A, F, X, D, U)
+        # if message_type == 'H':
+        #     # print('TRADE-ACTION MESSAGE: {}'.format(message.event))
+        #     if message.event in ('H','P','V'):
+        #         pass  # remove message.name from names
+        #     elif message.event == 'T':
+        #         pass  # add message.name to names (check that it isn't there already)
+        #     elif message.event in ('Q','R'):
+        #         pass  # quote only (only accepting A, F, X, D, U)
 
         # complete message
         if message_type == 'U':
@@ -1037,6 +1220,8 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
             if message.name in names:
                 orderlist.add(message)
                 print(message)
+        elif message_type in ('P'):
+            print(message)
 
         # update messages, books, and write to disk
         if method == 'hdf5':
@@ -1271,15 +1456,19 @@ def interpolate(data, tstep):
                         index=timestamps_new,
                         columns=data.columns)
 
-def imshow(data):
+def imshow(data, type):
     """
         Display order book data as an image, where order book data is either of
         `df_price` or `df_volume` returned by `load_hdf5` or `load_postgres`.
     """
     levels = int((data.shape[1] - 1) / 2)
-    idx = ['askvol.' + str(i) for i in range(levels, 0, -1)]
-    idx.extend(['bidvol.' + str(i) for i in range(1, levels + 1, 1)])
-    plt.imshow(data.ix[:,idx].T, interpolation='nearest', aspect='auto', cmap='gray')
+    if type == 'prices':
+        idx = ['askprc.' + str(i) for i in range(levels, 0, -1)]
+        idx.extend(['bidprc.' + str(i) for i in range(1, levels + 1, 1)])
+    elif type == 'volumes':
+        idx = ['askvol.' + str(i) for i in range(levels, 0, -1)]
+        idx.extend(['bidvol.' + str(i) for i in range(1, levels + 1, 1)])
+    plt.imshow(data.loc[:,idx].T, interpolation='nearest', aspect='auto', cmap='gray')
     plt.show()
 
 def reorder(data, columns):
