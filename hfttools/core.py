@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import psycopg2 as pg
+import matplotlib.pyplot as plt
 import struct
 import h5py
 import time
@@ -23,11 +24,13 @@ class Database():
         # open file, create otherwise
         try:
             self.file = h5py.File(path, 'r+')  # read/write, file must exist
-            print('Overwriting existing HDF5 file.')
+            print('Appending existing HDF5 file.')
             for name in names:
                 if name in self.file['messages'].keys():
+                    print('Overwriting message data for {}'.format(name))
                     del self.file['messages'][name]
                 if name in self.file['orderbooks'].keys():
+                    print('Overwriting orderbook data for {}'.format(name))
                     del self.file['orderbooks'][name]
         except OSError as e:
             print('HDF5 file does not exist. Creating a new one.')
@@ -328,14 +331,15 @@ class Messagelist():
     def to_hdf5(self, name, db):
         """Write messages to HDF5 file."""
         m = self.messages[name]
-        listed = [message.to_array() for message in m]
-        array = np.array(listed)
-        db_size, db_cols = db.messages[name].shape  # rows
-        array_size, array_cols = array.shape
-        db_resize = db_size + array_size
-        db.messages[name].resize((db_resize,db_cols))
-        db.messages[name][db_size:db_resize,:] = array
-        self.messages[name] = []  # reset
+        if len(m) > 0:
+            listed = [message.to_array() for message in m]
+            array = np.array(listed)
+            db_size, db_cols = db.messages[name].shape  # rows
+            array_size, array_cols = array.shape
+            db_resize = db_size + array_size
+            db.messages[name].resize((db_resize,db_cols))
+            db.messages[name][db_size:db_resize,:] = array
+            self.messages[name] = []  # reset
         print('wrote {} messages to dataset (name={})'.format(len(m), name))
 
     def to_postgres(self, name, db):
@@ -649,13 +653,14 @@ class Booklist():
     def to_hdf5(self, name, db):
         """Write Book data to HDF5 file."""
         hist = self.books[name]['hist']
-        array = np.array(hist)
-        db_size, db_cols = db.orderbooks[name].shape  # rows
-        array_size, array_cols = array.shape
-        db_resize = db_size + array_size
-        db.orderbooks[name].resize((db_resize,db_cols))
-        db.orderbooks[name][db_size:db_resize,:] = array
-        self.books[name]['hist'] = []  # reset
+        if len(hist) > 0:
+            array = np.array(hist)
+            db_size, db_cols = db.orderbooks[name].shape  # rows
+            array_size, array_cols = array.shape
+            db_resize = db_size + array_size
+            db.orderbooks[name].resize((db_resize,db_cols))
+            db.orderbooks[name][db_size:db_resize,:] = array
+            self.books[name]['hist'] = []  # reset
         print('wrote {} books to dataset (name={})'.format(len(hist), name))
 
     def to_postgres(self, name, db):
@@ -848,6 +853,16 @@ def protocol(message_bytes, message_type, time, version):
             message.name = temp[2].decode('ascii').rstrip(' ')
             message.price = temp[3]
             message.event = temp[5].decode('ascii')
+        elif message.type == 'P':  # trade message
+            temp = struct.unpack('>IQsI8sIQ', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.refno = temp[1]
+            message.buysell = temp[2].decode('ascii')
+            message.shares = temp[3]
+            message.name = temp[4].decode('ascii').rstrip(' ')
+            message.price = temp[5]
+            message.matchno = temp[6]
         return message
     elif version == 5.0:
         if message.type == 'T':  # time
@@ -969,8 +984,8 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
 
         # update clock
         if message_type == 'T':
-            # if message.sec % 60 == 0:
-                # print('TIME={}'.format(message.sec))
+            if message.sec % 60 == 0:
+                print('TIME={}'.format(message.sec))
                 # pass
             clock = message.sec
 
@@ -987,7 +1002,7 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
                 pass  # quote only
             elif message.event == 'B':
                 pass  # resume trading
-            # input('PAUSED (press any button to continue).')
+            input('PAUSED (press any button to continue).')
 
         if message_type == 'H':
             # print('TRADE-ACTION MESSAGE: {}'.format(message.event))
@@ -1010,18 +1025,18 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
         if message_type == 'U':
             if del_message.name in names:
                 orderlist.update(del_message)
-                # print(del_message)
+                print(del_message)
             if add_message.name in names:
                 orderlist.add(add_message)
-                # print(add_message)
+                print(add_message)
         elif message_type in ('E', 'C', 'X', 'D'):
             if message.name in names:
                 orderlist.update(message)
-                # print(message)
+                print(message)
         elif message_type in ('A', 'F'):
             if message.name in names:
                 orderlist.add(message)
-                # print(message)
+                print(message)
 
         # update messages, books, and write to disk
         if method == 'hdf5':
@@ -1124,7 +1139,6 @@ def load_hdf5(db, name):
                 messages = f['/messages/' + name]
                 data = messages[:,:]
                 T,N = data.shape
-                f.close()
                 columns = ['sec',
                            'nano',
                            'type',
@@ -1140,7 +1154,7 @@ def load_hdf5(db, name):
             except KeyError as e:
                 print('Could not find name {} in messages'.format(name))
             try:  # get orderbook data
-                data = f['orderbooks/' + name]
+                data = f['/orderbooks/' + name]
                 nlevels = int((data.shape[1] - 2) / 4)
                 pidx = list(range(2, 2 + nlevels))
                 pidx.extend(list(range(2 + nlevels, 2 + 2*nlevels)))
@@ -1258,11 +1272,15 @@ def interpolate(data, tstep):
                         columns=data.columns)
 
 def imshow(data):
-    """Display order book data as an image."""
-    levels = int(data.shape[1] / 2)
+    """
+        Display order book data as an image, where order book data is either of
+        `df_price` or `df_volume` returned by `load_hdf5` or `load_postgres`.
+    """
+    levels = int((data.shape[1] - 1) / 2)
     idx = ['askvol.' + str(i) for i in range(levels, 0, -1)]
     idx.extend(['bidvol.' + str(i) for i in range(1, levels + 1, 1)])
     plt.imshow(data.ix[:,idx].T, interpolation='nearest', aspect='auto', cmap='gray')
+    plt.show()
 
 def reorder(data, columns):
     """Reorder the columns of order data.
