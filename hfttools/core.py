@@ -297,6 +297,35 @@ class Message():
 
         return np.array(values)
 
+    def to_txt(self, fout):
+        if self.type == 'S':
+            sep = ','
+            line = [str(self.sec),
+                    str(self.nano),
+                    str(self.event)]
+            fout.write(sep.join(line) + '\n')
+        elif self.type in ('A', 'F', 'E', 'C', 'X', 'D'):
+            sep = ','
+            line = [str(self.sec),
+                    str(self.nano),
+                    str(self.name),
+                    str(self.type),
+                    str(self.refno),
+                    str(self.buysell),
+                    str(self.shares),
+                    str(self.price / 10 ** 4),
+                    str(self.mpid)]
+            fout.write(sep.join(line) + '\n')
+        elif self.type == 'P':
+            sep = ','
+            line = [str(self.sec),
+                    str(self.nano),
+                    str(self.name),
+                    str(self.buysell),
+                    str(self.shares),
+                    str(self.price / 10 ** 4)]
+            fout.write(sep.join(line) + '\n')
+
 class Messagelist():
     """A class to store messages.
 
@@ -418,7 +447,7 @@ class NOIIMessage():
         self.buysell = buysell
         self.price = price
         self.shares = shares
-        self.matchno = refno
+        self.matchno = matchno
         self.paired = paired
         self.imbalance = imbalance
         self.direction = direction
@@ -428,7 +457,7 @@ class NOIIMessage():
 
     def __str__(self):
         sep = ', '
-        line = ['date' + str(self.date),
+        line = ['date=' + str(self.date),
                 'sec=' + str(self.sec),
                 'nano=' + str(self.nano),
                 'name=' + str(self.name),
@@ -437,7 +466,7 @@ class NOIIMessage():
                 'buysell=' + str(self.buysell),
                 'price=' + str(self.price),
                 'shares=' + str(self.shares),
-                'matchno=' + str(self.refno),
+                'matchno=' + str(self.matchno),
                 'paired=' + str(self.paired),
                 'imbalance=' + str(self.imbalance),
                 'direction=' + str(self.direction),
@@ -448,7 +477,7 @@ class NOIIMessage():
 
     def __repr__(self):
         sep = ', '
-        line = ['date' + str(self.date),
+        line = ['date=' + str(self.date),
                 'sec=' + str(self.sec),
                 'nano=' + str(self.nano),
                 'name=' + str(self.name),
@@ -457,7 +486,7 @@ class NOIIMessage():
                 'buysell=' + str(self.buysell),
                 'price=' + str(self.price),
                 'shares=' + str(self.shares),
-                'matchno=' + str(self.refno),
+                'matchno=' + str(self.matchno),
                 'paired=' + str(self.paired),
                 'imbalance=' + str(self.imbalance),
                 'direction=' + str(self.direction),
@@ -540,6 +569,38 @@ class NOIIMessage():
         values.append(int(self.current))
 
         return np.array(values)
+
+    def to_txt(self, fout):
+        sep = ','
+        if self.type == 'Q':
+            line = [str(self.sec),
+                    str(self.nano),
+                    str(self.name),
+                    str(self.type),
+                    str(self.cross),
+                    str(self.shares),
+                    str(self.price / 10 ** 4),
+                    str(self.paired),
+                    str(self.imbalance),
+                    str(self.direction),
+                    str(self.far),
+                    str(self.near),
+                    str(self.current)]
+            fout.write(sep.join(line) + '\n')
+        elif self.type == 'I':
+            line = [str(self.sec),
+                    str(self.nano),
+                    str(self.name),
+                    str(self.type),
+                    str(self.cross),
+                    str(self.shares),
+                    str(self.price),
+                    str(self.paired),
+                    str(self.imbalance),
+                    str(self.direction),
+                    str(self.far / 10 ** 4),
+                    str(self.near / 10 ** 4),
+                    str(self.current / 10 ** 4)]
 
 class Order():
     """A class to represent limit orders.
@@ -649,10 +710,12 @@ class Orderlist():
         else:
             pass
 
+
 class Book():
     """A class to represent an order book.
 
-    This class provides a method for updating the state of an order book from an incoming message.
+    This class provides a method for updating the state of an order book from an
+    incoming message.
 
     Attributes
     ----------
@@ -672,6 +735,8 @@ class Book():
     def __init__(self, date, name, levels):
         self.bids = {}
         self.asks = {}
+        self.min_bid = -np.inf
+        self.max_ask = np.inf
         self.levels = levels
         self.sec = -1
         self.nano = -1
@@ -720,22 +785,21 @@ class Book():
         """Update Order using incoming Message data."""
         self.sec = message.sec
         self.nano = message.nano
+        updated = False
         if message.buysell == 'B':
             if message.price in self.bids.keys():
                 self.bids[message.price] += message.shares
                 if self.bids[message.price] == 0:
                     self.bids.pop(message.price)
-            else:
-                if message.type in ('A','F'):
-                    self.bids[message.price] = message.shares
+            elif message.type in ('A','F'):
+                self.bids[message.price] = message.shares
         elif message.buysell == 'S':
             if message.price in self.asks.keys():
                 self.asks[message.price] += message.shares
                 if self.asks[message.price] == 0:
                     self.asks.pop(message.price)
-            else:
-                if message.type in ('A','F'):
-                    self.asks[message.price] = message.shares
+            elif message.type in ('A','F'):
+                self.asks[message.price] = message.shares
         return self
 
     def to_list(self):
@@ -797,6 +861,35 @@ class Book():
             else:
                 values.append(0)
         return np.array(values)
+
+    def to_txt(self, fout):
+        values = []
+        values.append(int(self.sec))
+        values.append(int(self.nano))
+        values.append(self.name)
+        sorted_bids = sorted(self.bids.keys(), reverse=True)
+        sorted_asks = sorted(self.asks.keys())
+        for i in range(0, self.levels): # bid price
+            if i < len(self.bids):
+                values.append(sorted_bids[i] / 10 ** 4)
+            else:
+                values.append(-1)
+        for i in range(0, self.levels): # ask price
+            if i < len(self.asks):
+                values.append(sorted_asks[i] / 10 ** 4)
+            else:
+                values.append(-1)
+        for i in range(0, self.levels): # bid depth
+            if i < len(self.bids):
+                values.append(self.bids[sorted_bids[i]])
+            else:
+                values.append(-1)
+        for i in range(0, self.levels): # ask depth
+            if i < len(self.asks):
+                values.append(self.asks[sorted_asks[i]])
+            else:
+                values.append(-1)
+        fout.write(','.join([str(v) for v in values]) + '\n')
 
 class Booklist():
     """A class to store Books.
@@ -860,6 +953,222 @@ class Booklist():
         self.books[name]['hist'] = []  # reset
         print('wrote {} books to table (name={})'.format(len(hist),name))
 
+
+# class Book():
+#     """A class to represent an order book.
+#
+#     This class provides a method for updating the state of an order book from an
+#     incoming message.
+#
+#     Attributes
+#     ----------
+#     bids : dict
+#         Keys are prices, values are shares
+#     asks : dict
+#         Keys are prices, values are shares
+#     levels : int
+#         Number of levels of the the order book to track
+#     sec : int
+#         Seconds
+#     nano : int
+#         Nanoseconds
+#
+#     """
+#
+#     def __init__(self, date, name, levels):
+#         self.bids = {}
+#         self.asks = {}
+#         self.levels = levels
+#         self.sec = -1
+#         self.nano = -1
+#         self.date = date
+#         self.name = name
+#
+#     def __str__(self):
+#         sep = ', '
+#         sorted_bids = sorted(self.bids.keys(), reverse=True)  # high-to-low
+#         sorted_asks = sorted(self.asks.keys())  # low-to-high
+#         bid_list = []
+#         ask_list = []
+#         nbids = len(self.bids)
+#         nasks = len(self.asks)
+#         for i in range(0, self.levels):
+#             if i < nbids:
+#                 bid_list.append(str(self.bids[sorted_bids[i]]) + '@' + str(sorted_bids[i]))
+#             else:
+#                 pass
+#             if i < nasks:
+#                 ask_list.append(str(self.asks[sorted_asks[i]]) + '@' + str(sorted_asks[i]))
+#             else:
+#                 pass
+#         return 'bids: ' + sep.join(bid_list) + '\n' + 'asks: ' + sep.join(ask_list)
+#
+#     def __repr__(self):
+#         sep = ', '
+#         sorted_bids = sorted(self.bids.keys(), reverse=True)  # high-to-low
+#         sorted_asks = sorted(self.asks.keys())  # low-to-high
+#         bid_list = []
+#         ask_list = []
+#         nbids = len(self.bids)
+#         nasks = len(self.asks)
+#         for i in range(0, self.levels):
+#             if i < nbids:
+#                 bid_list.append(str(self.bids[sorted_bids[i]]) + '@' + str(sorted_bids[i]))
+#             else:
+#                 pass
+#             if i < nasks:
+#                 ask_list.append(str(self.asks[sorted_asks[i]]) + '@' + str(sorted_asks[i]))
+#             else:
+#                 pass
+#         return 'Book( \n' + 'bids: ' + sep.join(bid_list) + '\n' + 'asks: ' + sep.join(ask_list) + ' )'
+#
+#     def update(self, message):
+#         """Update Order using incoming Message data."""
+#         self.sec = message.sec
+#         self.nano = message.nano
+#         if message.buysell == 'B':
+#             if message.price in self.bids.keys():
+#                 self.bids[message.price] += message.shares
+#                 if self.bids[message.price] == 0:
+#                     self.bids.pop(message.price)
+#             else:
+#                 if message.type in ('A','F'):
+#                     self.bids[message.price] = message.shares
+#         elif message.buysell == 'S':
+#             if message.price in self.asks.keys():
+#                 self.asks[message.price] += message.shares
+#                 if self.asks[message.price] == 0:
+#                     self.asks.pop(message.price)
+#             else:
+#                 if message.type in ('A','F'):
+#                     self.asks[message.price] = message.shares
+#         return self
+#
+#     def to_list(self):
+#         """Return Order as a list."""
+#         values = []
+#         values.append(self.date)
+#         values.append(self.name)
+#         values.append(int(self.sec))
+#         values.append(int(self.nano))
+#         sorted_bids = sorted(self.bids.keys(), reverse=True)
+#         sorted_asks = sorted(self.asks.keys())
+#         for i in range(0, self.levels): # bid price
+#             if i < len(self.bids):
+#                 values.append(sorted_bids[i])
+#             else:
+#                 values.append(0)
+#         for i in range(0, self.levels): # ask price
+#             if i < len(self.asks):
+#                 values.append(sorted_asks[i])
+#             else:
+#                 values.append(0)
+#         for i in range(0, self.levels): # bid depth
+#             if i < len(self.bids):
+#                 values.append(self.bids[sorted_bids[i]])
+#             else:
+#                 values.append(0)
+#         for i in range(0, self.levels): # ask depth
+#             if i < len(self.asks):
+#                 values.append(self.asks[sorted_asks[i]])
+#             else:
+#                 values.append(0)
+#         return values
+#
+#     def to_array(self):
+#         '''Return Order as numpy array.'''
+#         values = []
+#         values.append(int(self.sec))
+#         values.append(int(self.nano))
+#         sorted_bids = sorted(self.bids.keys(), reverse=True)
+#         sorted_asks = sorted(self.asks.keys())
+#         for i in range(0, self.levels): # bid price
+#             if i < len(self.bids):
+#                 values.append(sorted_bids[i])
+#             else:
+#                 values.append(0)
+#         for i in range(0, self.levels): # ask price
+#             if i < len(self.asks):
+#                 values.append(sorted_asks[i])
+#             else:
+#                 values.append(0)
+#         for i in range(0, self.levels): # bid depth
+#             if i < len(self.bids):
+#                 values.append(self.bids[sorted_bids[i]])
+#             else:
+#                 values.append(0)
+#         for i in range(0, self.levels): # ask depth
+#             if i < len(self.asks):
+#                 values.append(self.asks[sorted_asks[i]])
+#             else:
+#                 values.append(0)
+#         return np.array(values)
+#
+#     def to_txt(self, fout):
+
+# class Booklist():
+#     """A class to store Books.
+#
+#     Provides methods for writing to external databases.
+#
+#     Examples
+#     --------
+#     Create a Booklist::
+#
+#     >> booklist = hft.BookList(['GOOG', 'AAPL'], levels=10)
+#
+#     Attributes
+#     ----------
+#     books : list
+#         A list of Books
+#     method : string
+#         Specifies the type of database to create ('hdf5' or 'postgres')
+#
+#     """
+#
+#     def __init__(self, date, names, levels, method):
+#         self.books = {}
+#         self.method = method
+#         for name in names:
+#             self.books[name] = {'hist':[], 'cur':Book(date, name, levels)}
+#
+#     def update(self, message):
+#         """Update Book data from message."""
+#         b = self.books[message.name]['cur'].update(message)
+#         if self.method == 'hdf5':
+#             self.books[message.name]['hist'].append(b.to_array())
+#         if self.method == 'postgres':
+#             self.books[message.name]['hist'].append(b.to_list())
+#
+#     def to_hdf5(self, name, db):
+#         """Write Book data to HDF5 file."""
+#         hist = self.books[name]['hist']
+#         if len(hist) > 0:
+#             array = np.array(hist)
+#             db_size, db_cols = db.orderbooks[name].shape  # rows
+#             array_size, array_cols = array.shape
+#             db_resize = db_size + array_size
+#             db.orderbooks[name].resize((db_resize,db_cols))
+#             db.orderbooks[name][db_size:db_resize,:] = array
+#             self.books[name]['hist'] = []  # reset
+#         print('wrote {} books to dataset (name={})'.format(len(hist), name))
+#
+#     def to_postgres(self, name, db):
+#         """Write Book data to PostgreSQL database."""
+#         db.open()
+#         hist = self.books[name]['hist']
+#         with db.conn.cursor() as cursor:
+#             for book in hist:
+#                 try:
+#                     cursor.execute('insert into orderbooks values%s;', [tuple(book)])  # %s becomes "(x,..., x)"
+#                 except pg.Error as e:
+#                     print(e.pgerror)
+#         db.conn.commit()
+#         db.close()
+#         self.books[name]['hist'] = []  # reset
+#         print('wrote {} books to table (name={})'.format(len(hist),name))
+
+
 def get_message_size(size_in_bytes):
     """Return number of bytes in binary message as an integer."""
     (message_size,) = struct.unpack('>H', size_in_bytes)
@@ -871,7 +1180,7 @@ def get_message_type(type_in_bytes):
 
 def get_message(message_bytes, message_type, date, time, version):
     """Return binary message data as a Message."""
-    if message_type in ('T', 'S', 'H', 'A', 'F', 'E', 'C', 'X', 'D', 'U', 'Q', 'P'):
+    if message_type in ('T', 'S', 'H', 'A', 'F', 'E', 'C', 'X', 'D', 'U', 'P', 'Q', 'I'):
         message = protocol(message_bytes, message_type, time, version)
         if version == 5.0:
             message.sec = int(message.nano / 10**9)
@@ -883,7 +1192,10 @@ def get_message(message_bytes, message_type, date, time, version):
 
 def protocol(message_bytes, message_type, time, version):
     """Decode binary message data and return as a Message."""
-    message = Message()
+    if message_type in ('T', 'S', 'H', 'A', 'F', 'E', 'C', 'X', 'D', 'U', 'P'):
+        message = Message()
+    elif message_type in ('Q', 'I'):
+        message = NOIIMessage()
     message.type = message_type
 
     if version == 4.0:
@@ -966,7 +1278,7 @@ def protocol(message_bytes, message_type, time, version):
             temp = struct.unpack('>I', message_bytes)
             message.sec = temp[0]
             message.nano = 0
-        elif message_type == 'S':  # systems
+        elif message.type == 'S':  # systems
             temp = struct.unpack('>Is', message_bytes)
             message.sec = time
             message.nano = temp[0]
@@ -1046,6 +1358,19 @@ def protocol(message_bytes, message_type, time, version):
             message.name = temp[4].decode('ascii').rstrip(' ')
             message.price = temp[5]
             # message.matchno = temp[6]
+        elif message.type == 'I':
+            temp = struct.unpack('>IQQs8sIIIss', message_bytes)
+            message.sec = time
+            message.nano = temp[0]
+            message.paired = temp[1]
+            message.imbalance = temp[2]
+            message.direction = temp[3].decode('ascii')
+            message.name = temp[4].decode('ascii').rstrip(' ')
+            message.far = temp[5]
+            message.near = temp[6]
+            message.current = temp[7]
+            message.cross = temp[8].decode('ascii')
+            # message.pvar = temp[9].decode('ascii'])
         return message
     elif version == 5.0:
         if message.type == 'T':  # time
