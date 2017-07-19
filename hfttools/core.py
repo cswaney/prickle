@@ -304,6 +304,13 @@ class Message():
                     str(self.nano),
                     str(self.event)]
             fout.write(sep.join(line) + '\n')
+        elif self.type == 'H':
+            sep = ','
+            line = [str(self.sec),
+                    str(self.nano),
+                    str(self.name),
+                    str(self.event)]
+            fout.write(sep.join(line) + '\n')
         elif self.type in ('A', 'F', 'E', 'C', 'X', 'D'):
             sep = ','
             line = [str(self.sec),
@@ -601,6 +608,63 @@ class NOIIMessage():
                     str(self.far / 10 ** 4),
                     str(self.near / 10 ** 4),
                     str(self.current / 10 ** 4)]
+            fout.write(sep.join(line) + '\n')
+
+# class TradingActionMessage():
+#     """
+#
+#     Parameters
+#     ----------
+#     date: string
+#     sec: int
+#     nano: int
+#     name: string
+#     state: string
+#
+#     """
+#
+#     def __init__(self, date='.', sec=-1, nano=-1, name='.', state='.'):
+#         self.date = date
+#         self.sec = sec
+#         self.nano = nano
+#         self.name = name
+#         self.state = state
+#
+#     def __str__(self):
+#         sep = ', '
+#         line = ['date=' + str(self.date),
+#                 'sec=' + str(self.sec),
+#                 'nano=' + str(self.nano),
+#                 'name=' + str(self.name),
+#                 'state=' + str(self.state)]
+#         return sep.join(line)
+#
+#     def __repr__(self):
+#         sep = ', '
+#         line = ['date=' + str(self.date),
+#                 'sec=' + str(self.sec),
+#                 'nano=' + str(self.nano),
+#                 'name=' + str(self.name),
+#                 'state=' + str(self.state)]
+#         return 'Message(' + sep.join(line) + ')'
+#
+#     def to_list(self):
+#         """Returns message as a list."""
+#
+#         values = []
+#         values.append(str(self.date))
+#         values.append(int(self.sec))
+#         values.append(int(self.nano))
+#         values.append(str(self.name))
+#         values.append(str(self.state))
+#         return values
+#
+#     def to_txt(self, fout):
+#         line = [str(self.sec),
+#                 str(self.nano),
+#                 str(self.name),
+#                 str(self.state)]
+#         fout.write(','.join(line) + '\n')
 
 class Order():
     """A class to represent limit orders.
@@ -1196,6 +1260,8 @@ def protocol(message_bytes, message_type, time, version):
         message = Message()
     elif message_type in ('Q', 'I'):
         message = NOIIMessage()
+    # elif message_type in ('H'):
+    #     message = TradingActionMessage()
     message.type = message_type
 
     if version == 4.0:

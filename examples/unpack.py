@@ -78,6 +78,19 @@ while reading:
         elif message.event == 'C':  # end messages
             reading = False
         # input()
+    elif message_type == 'H':
+        if message.name in names:
+            print('TRADING MESSAGE ({}): {}'.format(message.name, message.event))
+            message.to_txt(system_file)
+            if message.event == 'H':  # halted (all US)
+                pass
+            elif message.event == 'P':  # paused (all US)
+                pass
+            elif message.event == 'Q':  # quotation only
+                pass
+            elif message.event == 'T':  # trading on nasdaq
+                pass
+            # input()
 
     # market messages
     if message_type == 'U':
