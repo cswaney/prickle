@@ -63,7 +63,6 @@ class Postgres():
         Username for the Postgres connection
     nlevels : int
         Specifies the number of levels to include in the order book data
-
     """
 
     def __init__(self, host, user, nlevels):
@@ -121,6 +120,7 @@ class Postgres():
     def close(self):
         self.conn.close()
 
+# TODO: Make the different types of messages sub-classes of Message?
 class Message():
     """A class representing out-going messages from the NASDAQ system.
 
@@ -297,20 +297,13 @@ class Message():
 
         return np.array(values)
 
-    def to_txt(self, fout):
-        if self.type == 'S':
-            sep = ','
-            line = [str(self.sec),
-                    str(self.nano),
-                    str(self.event)]
-            fout.write(sep.join(line) + '\n')
-        elif self.type == 'H':
+    def to_txt(self, path):
+        if self.type in ('S', 'H'):
             sep = ','
             line = [str(self.sec),
                     str(self.nano),
                     str(self.name),
                     str(self.event)]
-            fout.write(sep.join(line) + '\n')
         elif self.type in ('A', 'F', 'E', 'C', 'X', 'D'):
             sep = ','
             line = [str(self.sec),
@@ -322,7 +315,6 @@ class Message():
                     str(self.shares),
                     str(self.price / 10 ** 4),
                     str(self.mpid)]
-            fout.write(sep.join(line) + '\n')
         elif self.type == 'P':
             sep = ','
             line = [str(self.sec),
@@ -331,76 +323,8 @@ class Message():
                     str(self.buysell),
                     str(self.shares),
                     str(self.price / 10 ** 4)]
+        with open(path, 'a') as fout:
             fout.write(sep.join(line) + '\n')
-
-class Messagelist():
-    """A class to store messages.
-
-    Provides methods for writing to HDF5 and PostgreSQL databases.
-
-    Parameters
-    ----------
-    date : string
-        Date to be assigned to data
-    names : list
-        Contains the stock tickers to include in the database
-
-    Attributes
-    ----------
-    messages : dict
-        Contains a Message objects for each name in names
-
-    Examples
-    --------
-    Create a MessageList::
-
-    >> msglist = hft.Messagelist(date='01012013', names=['GOOG', 'AAPL'])
-
-    """
-
-    def __init__(self, date, names):
-        self.messages = {}
-        self.date = date
-        for name in names:
-            self.messages[name] = []
-
-    def add(self,message):
-        """Add a message to the list."""
-        try:
-            self.messages[message.name].append(message)
-        except KeyError as e:
-            print("KeyError: Could not find {} in the message list".format(message.name))
-
-    def to_hdf5(self, name, db):
-        """Write messages to HDF5 file."""
-        m = self.messages[name]
-        if len(m) > 0:
-            listed = [message.to_array() for message in m]
-            array = np.array(listed)
-            db_size, db_cols = db.messages[name].shape  # rows
-            array_size, array_cols = array.shape
-            db_resize = db_size + array_size
-            db.messages[name].resize((db_resize,db_cols))
-            db.messages[name][db_size:db_resize,:] = array
-            self.messages[name] = []  # reset
-        print('wrote {} messages to dataset (name={})'.format(len(m), name))
-
-    def to_postgres(self, name, db):
-        """Write messages to PostgreSQL database."""
-        db.open()
-        m = self.messages[name]
-        listed = [message.to_list() for message in m]
-        with db.conn.cursor() as cursor:
-            for message in listed:
-                try:
-                    cursor.execute('insert into messages values%s;',
-                                   [tuple(message)])  # %s becomes "(x,..., x)"
-                except pg.Error as e:
-                    print(e.pgerror)
-        db.conn.commit()
-        db.close()
-        self.messages[name] = [] # reset
-        print('wrote {} messages to table (name={})'.format(len(m), name))
 
 class NOIIMessage():
     """A class representing out-going messages from the NASDAQ system.
@@ -577,7 +501,7 @@ class NOIIMessage():
 
         return np.array(values)
 
-    def to_txt(self, fout):
+    def to_txt(self, path):
         sep = ','
         if self.type == 'Q':
             line = [str(self.sec),
@@ -593,7 +517,6 @@ class NOIIMessage():
                     str(self.far),
                     str(self.near),
                     str(self.current)]
-            fout.write(sep.join(line) + '\n')
         elif self.type == 'I':
             line = [str(self.sec),
                     str(self.nano),
@@ -608,9 +531,9 @@ class NOIIMessage():
                     str(self.far / 10 ** 4),
                     str(self.near / 10 ** 4),
                     str(self.current / 10 ** 4)]
+        with open(path, 'a') as fout:
             fout.write(sep.join(line) + '\n')
 
-# TODO: Make the different types of messages sub-classes of Message?
 # class TradingActionMessage():
 #     """
 #
@@ -666,6 +589,75 @@ class NOIIMessage():
 #                 str(self.name),
 #                 str(self.state)]
 #         fout.write(','.join(line) + '\n')
+
+class Messagelist():
+    """A class to store messages.
+
+    Provides methods for writing to HDF5 and PostgreSQL databases.
+
+    Parameters
+    ----------
+    date : string
+        Date to be assigned to data
+    names : list
+        Contains the stock tickers to include in the database
+
+    Attributes
+    ----------
+    messages : dict
+        Contains a Message objects for each name in names
+
+    Examples
+    --------
+    Create a MessageList::
+
+    >> msglist = hft.Messagelist(date='01012013', names=['GOOG', 'AAPL'])
+
+    """
+
+    def __init__(self, date, names):
+        self.messages = {}
+        self.date = date
+        for name in names:
+            self.messages[name] = []
+
+    def add(self,message):
+        """Add a message to the list."""
+        try:
+            self.messages[message.name].append(message)
+        except KeyError as e:
+            print("KeyError: Could not find {} in the message list".format(message.name))
+
+    def to_hdf5(self, name, db):
+        """Write messages to HDF5 file."""
+        m = self.messages[name]
+        if len(m) > 0:
+            listed = [message.to_array() for message in m]
+            array = np.array(listed)
+            db_size, db_cols = db.messages[name].shape  # rows
+            array_size, array_cols = array.shape
+            db_resize = db_size + array_size
+            db.messages[name].resize((db_resize,db_cols))
+            db.messages[name][db_size:db_resize,:] = array
+            self.messages[name] = []  # reset
+        print('wrote {} messages to dataset (name={})'.format(len(m), name))
+
+    def to_postgres(self, name, db):
+        """Write messages to PostgreSQL database."""
+        db.open()
+        m = self.messages[name]
+        listed = [message.to_list() for message in m]
+        with db.conn.cursor() as cursor:
+            for message in listed:
+                try:
+                    cursor.execute('insert into messages values%s;',
+                                   [tuple(message)])  # %s becomes "(x,..., x)"
+                except pg.Error as e:
+                    print(e.pgerror)
+        db.conn.commit()
+        db.close()
+        self.messages[name] = [] # reset
+        print('wrote {} messages to table (name={})'.format(len(m), name))
 
 class Order():
     """A class to represent limit orders.
@@ -926,7 +918,7 @@ class Book():
                 values.append(0)
         return np.array(values)
 
-    def to_txt(self, fout):
+    def to_txt(self, path):
         values = []
         values.append(int(self.sec))
         values.append(int(self.nano))
@@ -953,7 +945,8 @@ class Book():
                 values.append(self.asks[sorted_asks[i]])
             else:
                 values.append(-1)
-        fout.write(','.join([str(v) for v in values]) + '\n')
+        with open(path, 'a') as fout:
+            fout.write(','.join([str(v) for v in values]) + '\n')
 
 class Booklist():
     """A class to store Books.
@@ -1132,6 +1125,7 @@ def protocol(message_bytes, message_type, time, version):
             temp = struct.unpack('>Is', message_bytes)
             message.sec = time
             message.nano = temp[0]
+            message.name = '.'
             message.event = temp[1].decode('ascii')
         elif message.type == 'H':  # trade-action
             temp = struct.unpack('>I8sss4s', message_bytes)
@@ -1298,7 +1292,6 @@ def protocol(message_bytes, message_type, time, version):
     else:
         raise ValueError('ITCH version ' + str(version) + ' is not supported')
 
-# Utilities (non-essential)
 def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, user=None):
     """Read ITCH data file, construct LOB, and write to database.
 
