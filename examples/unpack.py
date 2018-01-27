@@ -4,23 +4,16 @@ import datetime
 import sys
 import time
 
-names = pd.read_csv('/Users/colinswaney/Desktop/SP500.txt')['Symbol']
-names = [name.lstrip(' ') for name in names]
-date = '070113'
-fin = '/Volumes/datasets/ITCH/bin/S{}-v41.txt'.format(date)
+# Set version number of data!
+ver = 4.1
+
+# Prepare output files
+nlevels = 5
 fout_system = '/Users/colinswaney/Desktop/system.txt'
 fout_messages = '/Users/colinswaney/Desktop/messages.txt'
 fout_books = '/Users/colinswaney/Desktop/books.txt'
 fout_trades = '/Users/colinswaney/Desktop/trades.txt'
 fout_noii = '/Users/colinswaney/Desktop/noii.txt'
-ver = 4.1
-nlevels = 5
-message_count = 0
-orderlist = hft.Orderlist()
-books = {}
-for name in names:
-    books[name] = hft.Book(date, name, nlevels)
-data = open(fin, 'rb')
 system_file = open(fout_system, 'w')
 system_file.write('sec,nano,event\n')
 messages_file = open(fout_messages, 'w')
@@ -36,8 +29,19 @@ trades_file = open(fout_trades, 'w')
 trades_file.write('sec,nano,name,side,shares,price\n')
 noii_file = open(fout_noii, 'w')
 noii_file.write('sec,nano,name,type,cross,shares,price,paired,imb,dir,far,near,curr\n')
-clock = 0
 
+# Setup for data processing
+date = '070113'
+fin = '/Volumes/datasets/ITCH/bin/S{}-v41.txt'.format(date)
+data = open(fin, 'rb')
+books = {}
+names = pd.read_csv('/Users/colinswaney/Desktop/SP500.txt')['Symbol']
+names = [name.lstrip(' ') for name in names]
+for name in names:
+    books[name] = hft.Book(date, name, nlevels)
+orderlist = hft.Orderlist()
+message_count = 0
+clock = 0
 reading = True
 start = time.time()
 while reading:

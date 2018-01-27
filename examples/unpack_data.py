@@ -8,8 +8,6 @@ with open('../names.txt', 'r') as fin:
 _, date = sys.argv
 fin = '/Volumes/datasets/ITCH/bin/S{}-v41.txt'.format(date)
 fout = '/Volumes/datasets/ITCH/hdf5/itch-{}.hdf5'.format(date)
-# fin = '/Volumes/Data Backup/ITCH/bin/S{}-v41.txt'.format(date)
-# fout = '/Volumes/Data Backup/ITCH/hdf5/itch-{}.hdf5'.format(date)
 ver = 4.1
 nlevels = 10
 method = 'hdf5'
