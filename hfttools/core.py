@@ -197,7 +197,16 @@ class Message():
 
     def split(self):
         """Converts a replace message to an add and a delete."""
+        assert self.type == 'U', "ASSERT-ERROR: split method called on non-replacement message."
         if self.type == 'U':
+            new_message = Message(date=self.date,
+                                  sec=self.sec,
+                                  nano=self.nano,
+                                  type='U',
+                                  price=self.price,
+                                  shares=self.shares,
+                                  refno=self.refno,
+                                  newrefno=self.newrefno)
             del_message = Message(date=self.date,
                                   sec=self.sec,
                                   nano=self.nano,
@@ -207,14 +216,12 @@ class Message():
             add_message = Message(date=self.date,
                                   sec=self.sec,
                                   nano=self.nano,
-                                  type='U',  # used by complete_message
+                                  type='U+',
                                   price=self.price,
                                   shares=self.shares,
                                   refno=self.refno,
                                   newrefno=self.newrefno)
-            return (del_message, add_message)
-        else:
-            print('Warning: "split" method called on non-replacement messages.')
+            return (new_message, del_message, add_message)
 
     def to_list(self):
         """Returns message as a list."""
@@ -304,7 +311,7 @@ class Message():
                     str(self.nano),
                     str(self.name),
                     str(self.event)]
-        elif self.type in ('A', 'F', 'E', 'C', 'X', 'D'):
+        elif self.type in ('A', 'F', 'E', 'C', 'X', 'D', 'U'):
             sep = ','
             line = [str(self.sec),
                     str(self.nano),
@@ -534,62 +541,6 @@ class NOIIMessage():
         with open(path, 'a') as fout:
             fout.write(sep.join(line) + '\n')
 
-# class TradingActionMessage():
-#     """
-#
-#     Parameters
-#     ----------
-#     date: string
-#     sec: int
-#     nano: int
-#     name: string
-#     state: string
-#
-#     """
-#
-#     def __init__(self, date='.', sec=-1, nano=-1, name='.', state='.'):
-#         self.date = date
-#         self.sec = sec
-#         self.nano = nano
-#         self.name = name
-#         self.state = state
-#
-#     def __str__(self):
-#         sep = ', '
-#         line = ['date=' + str(self.date),
-#                 'sec=' + str(self.sec),
-#                 'nano=' + str(self.nano),
-#                 'name=' + str(self.name),
-#                 'state=' + str(self.state)]
-#         return sep.join(line)
-#
-#     def __repr__(self):
-#         sep = ', '
-#         line = ['date=' + str(self.date),
-#                 'sec=' + str(self.sec),
-#                 'nano=' + str(self.nano),
-#                 'name=' + str(self.name),
-#                 'state=' + str(self.state)]
-#         return 'Message(' + sep.join(line) + ')'
-#
-#     def to_list(self):
-#         """Returns message as a list."""
-#
-#         values = []
-#         values.append(str(self.date))
-#         values.append(int(self.sec))
-#         values.append(int(self.nano))
-#         values.append(str(self.name))
-#         values.append(str(self.state))
-#         return values
-#
-#     def to_txt(self, fout):
-#         line = [str(self.sec),
-#                 str(self.nano),
-#                 str(self.name),
-#                 str(self.state)]
-#         fout.write(','.join(line) + '\n')
-
 class Messagelist():
     """A class to store messages.
 
@@ -621,7 +572,7 @@ class Messagelist():
         for name in names:
             self.messages[name] = []
 
-    def add(self,message):
+    def add(self, message):
         """Add a message to the list."""
         try:
             self.messages[message.name].append(message)
@@ -727,13 +678,16 @@ class Orderlist():
         if message.refno in self.orders.keys():
             # print('complete_message received message: {}'.format(message.type))
             ref_order = self.orders[message.refno]
-            if message.type == 'U':  # ADD from a split REPLACE order
+            if message.type == 'U':
+                message.name = ref_order.name
+                message.buysell = ref_order.buysell
+            elif message.type == 'U+':  # ADD from a split REPLACE order
                 message.type = 'A'
                 message.name = ref_order.name
                 message.buysell = ref_order.buysell
                 message.refno = message.newrefno
                 message.newrefno = -1
-            if message.type in ('E', 'C', 'X'):
+            elif message.type in ('E', 'C', 'X'):
                 message.name = ref_order.name
                 message.buysell = ref_order.buysell
                 message.price = ref_order.price
