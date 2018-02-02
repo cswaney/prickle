@@ -10,12 +10,14 @@ _, date = sys.argv
 
 if os.path.exists('/Volumes/datasets/ITCH/csv/{}/'.format(date)):
     proceed = input('A directory already exists for the date provided. Are you sure you want to proceed? [Y/N]')
-    os.removedirs('/Volumes/datasets/ITCH/csv/{}/'.format(date))
-    os.removedirs('/Volumes/datasets/ITCH/csv/{}/system/'.format(date))
-    os.removedirs('/Volumes/datasets/ITCH/csv/{}/messages/'.format(date))
-    os.removedirs('/Volumes/datasets/ITCH/csv/{}/books/'.format(date))
-    os.removedirs('/Volumes/datasets/ITCH/csv/{}/trades/'.format(date))
-    os.removedirs('/Volumes/datasets/ITCH/csv/{}/noii/'.format(date))
+    if proceed == 'Y':
+        # TODO: this doesn't work!
+        os.removedirs('/Volumes/datasets/ITCH/csv/{}/'.format(date))
+        os.removedirs('/Volumes/datasets/ITCH/csv/{}/system/'.format(date))
+        os.removedirs('/Volumes/datasets/ITCH/csv/{}/messages/'.format(date))
+        os.removedirs('/Volumes/datasets/ITCH/csv/{}/books/'.format(date))
+        os.removedirs('/Volumes/datasets/ITCH/csv/{}/trades/'.format(date))
+        os.removedirs('/Volumes/datasets/ITCH/csv/{}/noii/'.format(date))
 else:
     proceed = 'Y'
 
@@ -156,7 +158,7 @@ if proceed == 'Y':
                 # message.to_txt(trades_path + 'trades_{}.txt'.format(message.name))
                 pass
 
-        if message_type in ('U', 'E', 'C', 'X', 'D', 'A', 'F', 'P'):
+        if message_type in ('U', 'E', 'C', 'X', 'D', 'A', 'F'):
             if message.name in names:
                 books_list[message.name].append(books[message.name].to_txt())
                 if len(books_list[message.name]) == max_lines:
@@ -170,6 +172,14 @@ if proceed == 'Y':
                         fout.writelines(messages_list[message.name])
                         print('WROTE {} lines to messages_{}.txt'.format(max_lines, message.name))
                     messages_list[message.name] = []
+        if message_type in ('P'):
+            if message.name in names:
+                trades_list[message.name].append(message.to_txt())
+                if len(trades_list[message.name]) == max_lines:
+                    with open(trades_path + 'trades_{}.txt'.format(message.name), 'a') as fout:
+                        fout.writelines(trades_list[message.name])
+                        print('WROTE {} lines to trades_{}.txt'.format(max_lines, message.name))
+                    trades_list[message.name] = []
 
         # noii messages
         if message_type == 'Q':
@@ -189,6 +199,9 @@ if proceed == 'Y':
         with open(messages_path + 'messages_{}.txt'.format(name), 'a') as fout:
             fout.writelines(messages_list[name])
             print('WROTE {} lines to messages_{}.txt'.format(len(messages_list[name]), name))
+        with open(trades_path + 'trades_{}.txt'.format(name), 'a') as fout:
+            fout.writelines(trades_list[name])
+            print('WROTE {} lines to trades_{}.txt'.format(len(messages_list[name]), name))
 
     stop = time.time()
     print('Total messages: {}'.format(message_count))

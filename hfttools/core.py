@@ -1583,19 +1583,22 @@ def interpolate(data, tstep):
                         index=timestamps_new,
                         columns=data.columns)
 
-def imshow(data, type):
+def imshow(data, which, levels):
     """
         Display order book data as an image, where order book data is either of
         `df_price` or `df_volume` returned by `load_hdf5` or `load_postgres`.
     """
-    levels = int((data.shape[1] - 1) / 2)
-    if type == 'prices':
-        idx = ['askprc.' + str(i) for i in range(levels, 0, -1)]
-        idx.extend(['bidprc.' + str(i) for i in range(1, levels + 1, 1)])
-    elif type == 'volumes':
-        idx = ['askvol.' + str(i) for i in range(levels, 0, -1)]
-        idx.extend(['bidvol.' + str(i) for i in range(1, levels + 1, 1)])
-    plt.imshow(data.loc[:,idx].T, interpolation='nearest', aspect='auto', cmap='gray')
+
+    if which == 'prices':
+        idx = ['askprc' + str(i) for i in range(levels-1, -1, -1)]
+        idx.extend(['bidprc' + str(i) for i in range(0, levels, 1)])
+    elif which == 'volumes':
+        idx = ['askvol' + str(i) for i in range(levels-1, -1, -1)]
+        idx.extend(['bidvol' + str(i) for i in range(0, levels, 1)])
+    plt.imshow(data.loc[:,idx].T, interpolation='nearest', aspect='auto')
+    plt.yticks(range(0, levels * 2, 1), idx)
+    plt.colorbar()
+    plt.tight_layout()
     plt.show()
 
 def reorder(data, columns):
@@ -1646,3 +1649,14 @@ def plot_trades(trades):
     plt.hist(-buys.shares, bins=np.arange(1, 1100, 100), edgecolor='white', color='C1', alpha=0.5)
     plt.show()
     plt.clf()
+
+def analyze(messages):
+    # message counts
+    message_counts = pd.value_counts(messages['type'])
+
+def nodups(books, messages):
+    """Return messages and books with rows remove for orders that didn't change book."""
+    assert books.shape[0] == messages.shape[0], "books and messages do not have the same number of rows"
+    subset = books.columns.drop(['sec', 'nano', 'name'])
+    dups = books.duplicated(subset=subset)
+    return books[~dups].reset_index(), messages[~dups].reset_index()
