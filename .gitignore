@@ -54,6 +54,7 @@ nose2/
 postgres.py
 hdf5.py
 *.prof
+*.lprof
 
 # Translations
 *.mo

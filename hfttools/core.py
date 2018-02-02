@@ -304,7 +304,7 @@ class Message():
 
         return np.array(values)
 
-    def to_txt(self, path):
+    def to_txt(self, path=None):
         if self.type in ('S', 'H'):
             sep = ','
             line = [str(self.sec),
@@ -330,8 +330,11 @@ class Message():
                     str(self.buysell),
                     str(self.shares),
                     str(self.price / 10 ** 4)]
-        with open(path, 'a') as fout:
-            fout.write(sep.join(line) + '\n')
+        if path is None:
+            return sep.join(line) + '\n'
+        else:
+            with open(path, 'a') as fout:
+                fout.write(sep.join(line) + '\n')
 
 class NOIIMessage():
     """A class representing out-going messages from the NASDAQ system.
@@ -872,7 +875,7 @@ class Book():
                 values.append(0)
         return np.array(values)
 
-    def to_txt(self, path):
+    def to_txt(self):
         values = []
         values.append(int(self.sec))
         values.append(int(self.nano))
@@ -899,8 +902,9 @@ class Book():
                 values.append(self.asks[sorted_asks[i]])
             else:
                 values.append(-1)
-        with open(path, 'a') as fout:
-            fout.write(','.join([str(v) for v in values]) + '\n')
+        return ','.join([str(v) for v in values]) + '\n'
+        # with open(path, 'a') as fout:
+        #     fout.write(','.join([str(v) for v in values]) + '\n')
 
 class Booklist():
     """A class to store Books.
@@ -1608,3 +1612,37 @@ def reorder(data, columns):
         idx = ['askprc.' + str(i) for i in range(levels, 0, -1)]
         idx.extend(['bidprc.' + str(i) for i in range(1, levels + 1, 1)])
     return data.ix[:,idx]
+
+def find_trades(messages):
+    messages['time'] = messages['sec'] + messages['nano'] / 10 ** 9
+    messages = messages[messages.type == 'E']
+    trades = []
+    i = 0
+    while i < len(messages):
+        t = messages.iloc[i].time
+        s = messages.iloc[i].side
+        v = messages.iloc[i].shares
+        p = messages.iloc[i].price
+        h = 0
+        i += 1
+        if i == len(messages):
+            break
+        while messages.iloc[i].time == t:
+            v += messages.iloc[i].shares
+            if messages.iloc[i].price != p:
+                h = 1
+                p = messages.iloc[i].price * messages.iloc[i].shares / v + p * (v - messages.iloc[i].shares) / v
+            i += 1
+            if i == len(messages):
+                break
+        # print('TRADE (t={}, s={}, v={})'.format(t, s, v))
+        trades.append([t, s, v, p, h])
+    return pd.DataFrame(trades, columns=['time', 'side', 'shares', 'vwap', 'hit'])
+
+def plot_trades(trades):
+    sells = trades[trades.side == 'B']
+    buys = trades[trades.side == 'S']
+    plt.hist(sells.shares, bins=np.arange(-1000, 100, 100), edgecolor='white', color='C0', alpha=0.5)
+    plt.hist(-buys.shares, bins=np.arange(1, 1100, 100), edgecolor='white', color='C1', alpha=0.5)
+    plt.show()
+    plt.clf()
