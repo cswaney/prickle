@@ -1617,10 +1617,10 @@ def reorder(data, columns):
     return data.ix[:,idx]
 
 def find_trades(messages, eps=10 ** -6):
-    side_dict = {'B': 'S', 'S': 'B'} # limit order side : market order side
     if 'time' not in messages.columns:
         messages['time'] = messages['sec'] + messages['nano'] / 10 ** 9
-    messages = messages[messages.type == 'E']
+    if 'type' in messages.columns:
+        messages = messages[messages.type == 'E']
     trades = []
     i = 0
     while i < len(messages):
@@ -1641,7 +1641,7 @@ def find_trades(messages, eps=10 ** -6):
             if i == len(messages):
                 break
         # print('TRADE (time={}, side={}, shares={}, vwap={}, hit={})'.format(time, side, shares, vwap, hit))
-        trades.append([time, side_dict[side], shares, vwap, hit])
+        trades.append([time, side, shares, vwap, hit])
     return pd.DataFrame(trades, columns=['time', 'side', 'shares', 'vwap', 'hit'])
 
 def plot_trades(trades):
@@ -1662,3 +1662,12 @@ def nodups(books, messages):
     subset = books.columns.drop(['sec', 'nano', 'name'])
     dups = books.duplicated(subset=subset)
     return books[~dups].reset_index(), messages[~dups].reset_index()
+
+def combine(messages, hidden):
+    """Combine hidden executions with message data."""
+    messages = messages.drop(['index', 'sec', 'nano', 'name', 'refno', 'mpid'], axis=1)
+    hidden['type'] = 'H'
+    hidden = hidden.drop(['hit'], axis=1)
+    hidden = hidden.rename(columns={'vwap': 'price'})
+    combined = pd.concat([messages, hidden])
+    return combined.sort_values(by='time', axis=0)

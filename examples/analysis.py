@@ -37,7 +37,7 @@ pd.value_counts(messages['mpid'])
 trades = find_trades(messages)
 pd.value_counts(trades['side'])
 pd.value_counts(trades['hit'])
-trades.loc[:,('shares', 'vwap')].describe()
+trades.loc[:,('shares', 'vwap', 'hit')].describe()
 buys = trades[trades['side'] == 'B']
 sells = trades[trades['side'] == 'S']
 plt.scatter(buys['time'], buys['vwap'], alpha=0.50, s=8, color='C4')
@@ -48,9 +48,11 @@ plt.bar(sells['time'], sells['shares'], alpha=0.5, color='C1', width=10)
 plt.legend(['buys', 'sells'])
 
 # Hidden
-buys = hidden[hidden['side'] == 'B']
-sells = hidden[hidden['side'] == 'S']
+buys = hidden[hidden['side'] == 'S']
+sells = hidden[hidden['side'] == 'B']
 plt.scatter(buys['time'], buys['price'], alpha=0.25, s=8)
 plt.scatter(sells['time'], sells['price'], alpha=0.25, s=8)
 hidden.loc[:,('shares', 'price')].describe()
 pd.value_counts(hidden['side'])
+hidden_trades = find_trades(hidden)
+hidden_trades.loc[:,('shares', 'price', 'hit')].describe()
