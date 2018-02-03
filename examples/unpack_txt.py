@@ -147,7 +147,6 @@ if proceed:
             orderlist.complete_message(del_message)
             orderlist.complete_message(add_message)
             if message.name in names:
-                # print('{}'.format(message))
                 orderlist.update(del_message)
                 books[del_message.name].update(del_message)
                 orderlist.add(add_message)
@@ -155,22 +154,14 @@ if proceed:
         elif message_type in ('E', 'C', 'X', 'D'):
             orderlist.complete_message(message)
             if message.name in names:
-                # print('{}'.format(message))
                 orderlist.update(message)
                 books[message.name].update(message)
-                # books[message.name].to_txt(books_path + 'books_{}.txt'.format(message.name))
-                # message.to_txt(messages_path + 'messages_{}.txt'.format(message.name))
         elif message_type in ('A', 'F'):
             if message.name in names:
-                # print('{}'.format(message))
                 orderlist.add(message)
                 books[message.name].update(message)
-                # books[message.name].to_txt(books_path + 'books_{}.txt'.format(message.name))
-                # message.to_txt(messages_path + 'messages_{}.txt'.format(message.name))
         elif message_type in ('P'):
             if message.name in names:
-                # print('{}'.format(message))
-                # message.to_txt(trades_path + 'trades_{}.txt'.format(message.name))
                 pass
 
         if message_type in ('U', 'E', 'C', 'X', 'D', 'A', 'F'):

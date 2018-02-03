@@ -151,7 +151,7 @@ class Message():
     """
 
     def __init__(self, date='.', sec=-1, nano=-1, type='.', event='.', name='.',
-                 buysell='.', price=-1, shares=0, refno=-1, newrefno=-1, mpid=-1):
+                 buysell='.', price=-1, shares=0, refno=-1, newrefno=-1, mpid='.'):
         self.date = date
         self.name = name
         self.sec = sec
@@ -1024,7 +1024,7 @@ def protocol(message_bytes, message_type, time, version):
             message.shares = temp[3]
             message.name = temp[4].decode('ascii').rstrip(' ')
             message.price = temp[5]
-        elif message.type == 'F':  # add w/mpid (I ignore mpid, so same as 'A')
+        elif message.type == 'F':  # add w/mpid
             temp = struct.unpack('>IQsI6sI4s', message_bytes)
             message.sec = time
             message.nano = temp[0]
@@ -1616,30 +1616,32 @@ def reorder(data, columns):
         idx.extend(['bidprc.' + str(i) for i in range(1, levels + 1, 1)])
     return data.ix[:,idx]
 
-def find_trades(messages):
-    messages['time'] = messages['sec'] + messages['nano'] / 10 ** 9
+def find_trades(messages, eps=10 ** -6):
+    side_dict = {'B': 'S', 'S': 'B'} # limit order side : market order side
+    if 'time' not in messages.columns:
+        messages['time'] = messages['sec'] + messages['nano'] / 10 ** 9
     messages = messages[messages.type == 'E']
     trades = []
     i = 0
     while i < len(messages):
-        t = messages.iloc[i].time
-        s = messages.iloc[i].side
-        v = messages.iloc[i].shares
-        p = messages.iloc[i].price
-        h = 0
+        time = messages.iloc[i].time
+        side = messages.iloc[i].side
+        shares = messages.iloc[i].shares
+        vwap = messages.iloc[i].price
+        hit = 0
         i += 1
         if i == len(messages):
             break
-        while messages.iloc[i].time == t:
-            v += messages.iloc[i].shares
-            if messages.iloc[i].price != p:
-                h = 1
-                p = messages.iloc[i].price * messages.iloc[i].shares / v + p * (v - messages.iloc[i].shares) / v
+        while messages.iloc[i].time <= time + eps and messages.iloc[i].side == side:
+            shares += messages.iloc[i].shares
+            if messages.iloc[i].price != vwap:
+                hit = 1
+                vwap = messages.iloc[i].price * messages.iloc[i].shares / shares + vwap * (shares - messages.iloc[i].shares) / shares
             i += 1
             if i == len(messages):
                 break
-        # print('TRADE (t={}, s={}, v={})'.format(t, s, v))
-        trades.append([t, s, v, p, h])
+        # print('TRADE (time={}, side={}, shares={}, vwap={}, hit={})'.format(time, side, shares, vwap, hit))
+        trades.append([time, side_dict[side], shares, vwap, hit])
     return pd.DataFrame(trades, columns=['time', 'side', 'shares', 'vwap', 'hit'])
 
 def plot_trades(trades):
