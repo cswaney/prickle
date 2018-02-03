@@ -39,9 +39,9 @@ if proceed:
     main_path = '{}/csv/{}/'.format(root, date)
     system_path = '{}/csv/{}/system/'.format(root, date)
     messages_path = '{}/csv/{}/messages/'.format(root, date)
-    books_path = '{}/csv/{}/books/'.format(date)
-    trades_path = '{}/csv/{}/trades/'.format(date)
-    noii_path = '{}/csv/{}/noii/'.format(date)
+    books_path = '{}/csv/{}/books/'.format(root, date)
+    trades_path = '{}/csv/{}/trades/'.format(root, date)
+    noii_path = '{}/csv/{}/noii/'.format(root, date)
 
     # Directories
     os.makedirs(main_path)
