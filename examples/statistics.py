@@ -15,24 +15,18 @@ for name in sorted(names):
         start = time.time()
         messages = pd.read_csv('{}/csv/{}/messages/messages_{}.txt'.format(root, date, name))
         books = pd.read_csv('{}/csv/{}/books/books_{}.txt'.format(root, date, name))
-        # hidden = pd.read_csv('{}/csv/{}/trades/trades_{}.txt'.format(root, date, name))
         messages['time'] = messages['sec'] + messages['nano'] / 10 ** 9
         messages = messages[(messages['time'] > 34200) & (messages['time'] < 57600)]
         books['time'] = books['sec'] + books['nano'] / 10 ** 9
         books = books[(books['time'] > 34200) & (books['time'] < 57600)]
-        # hidden['time'] = hidden['sec'] + hidden['nano'] / 10 ** 9
-        # hidden = hidden[(hidden['time'] > 34200) & (hidden['time'] < 57000)]
         books, messages = nodups(books, messages)
-        # trades = find_trades(messages)
-        # hidden_trades = find_trades(hidden)
-
         counts = pd.value_counts(messages['type']).sort_index()
         row = [date, name] + list(counts)
         output.append(row)
         stop = time.time()
         print('Processing data for {}, {} (time={})'.format(name, date, stop - start))
 df = pd.DataFrame(output, columns=['date', 'name', 'A', 'C', 'D', 'E', 'F', 'U', 'X'])
-df.to_csv('/Volumes/datasets/ITCH/csv/message_counts.txt')
+df.to_csv('/Volumes/datasets/ITCH/stats/message_counts.txt')
 
 # message_shares.txt
 output = []
@@ -53,7 +47,7 @@ for name in sorted(names):
         stop = time.time()
         print('Processing data for {}, {} (time={})'.format(name, date, stop - start))
 df = pd.DataFrame(output, columns=['date', 'name', 'type'] + list(np.arange(0, 2000, 25)))
-df.to_csv('/Volumes/datasets/ITCH/csv/message_shares.txt')
+df.to_csv('/Volumes/datasets/ITCH/stats/message_shares.txt')
 
 # message_times.txt
 output = []
@@ -74,7 +68,7 @@ for name in sorted(names):
         stop = time.time()
         print('Processing data for {}, {} (time={})'.format(name, date, stop - start))
 df = pd.DataFrame(output, columns=['date', 'name', 'type'] + list(np.arange(34200, 57600, 300)))
-df.to_csv('/Volumes/datasets/ITCH/csv/message_times.txt')
+df.to_csv('/Volumes/datasets/ITCH/stats/message_times.txt')
 
 # message_nano.txt
 output = []
@@ -95,7 +89,7 @@ for name in sorted(names):
         stop = time.time()
         print('Processing data for {}, {} (time={})'.format(name, date, stop - start))
 df = pd.DataFrame(output, columns=['date', 'name', 'type'] + list(np.arange(0, 10 ** 9, 2 * 10 ** 7)))
-df.to_csv('/Volumes/datasets/ITCH/csv/message_nano.txt')
+df.to_csv('/Volumes/datasets/ITCH/stats/message_nano.txt')
 
 # trades.txt
 output = []
@@ -112,7 +106,7 @@ for name in sorted(names):
         stop = time.time()
         print('Processing data for {}, {} (time={})'.format(name, date, stop - start))
 df = pd.concat(output)
-df.to_csv('/Volumes/datasets/ITCH/csv/trades.txt')
+df.to_csv('/Volumes/datasets/ITCH/stats/trades.txt')
 
 # hidden.txt
 output = []
@@ -129,4 +123,4 @@ for name in sorted(names):
         stop = time.time()
         print('Processing data for {}, {} (time={})'.format(name, date, stop - start))
 df = pd.concat(output)
-df.to_csv('/Volumes/datasets/ITCH/csv/hidden_trades.txt')
+df.to_csv('/Volumes/datasets/ITCH/stats/hidden_trades.txt')
