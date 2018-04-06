@@ -6,6 +6,7 @@ A Python toolkit for high-frequency trade research.
 2. [Nasdaq ITCH Data](#nasdaq-itch-data)
 3. [Package Details](#package-details)
 4. [Examples](#examples)
+5. [Installation](#installation)
 
 
 ## Overview
@@ -76,10 +77,10 @@ Finally, `unpack` provides two methods for storing the processed data.
 ![alt text](https://img.shields.io/pypi/v/hfttools.svg "pypi")
 
 ### Requirements
-This package runs on **Python3.5**. By default, the data is stored in text/comma-separated files. You will need the following to create HDF5 or PostgreSQL databases (these are **not** installed automatically):
+This package runs on **Python3.5**. By default, the data is stored in text/comma-separated files. You will need the following to create HDF5 <!--or PostgreSQL--> databases (these are **not** installed automatically):
 
 1. [HDF5](https://www.hdfgroup.org).
-2. [PostgreSQL](https://www.postgresql.org)
+<!--2. [PostgreSQL](https://www.postgresql.org)-->
 
 After you have installed and configured these, simply install using the Python package manager. We recommend using a virtual environment:
 
@@ -90,32 +91,32 @@ pip install hfttools
 ```
 
 ## Basic Usage
-To create a new HDF5 database from an ITCH data file `itch_010113`:
+To create a new HDF5 database for AAPL and GOOG stocks from an ITCH data file `S010113-v41.txt`:
 
 ```python
 import hfttools as hft
 
 hft.unpack(fin='itch_010113.bin',
-		   ver=4.1,
-		   date='2013-01-01',
-		   fout='itch.hdf5'
-		   nlevels=10,
-		   names=['GOOG', 'AAPL'],
-		   method='hdf5')
+           ver=4.1,
+	   date='2013-01-01',
+	   fout='itch.hdf5'
+	   nlevels=10,
+	   names=['GOOG', 'AAPL'],
+	   method='hdf5')
 ```
 
 This will create a file `itch.hdf5` containing message and order book data for Google and Apple. To read the order book data back into your Python session, use `hft.read`:
 
 ```python
 hft.read(db='itch.hdf5',
-		 date='2013-01-01',
-		 names='GOOG')
+	 date='2013-01-01',
+	 names='GOOG')
 ```
 
-For more information, see the tutorial at the projects [webpage](https://cswaney.github.io/hfttools/).
+<!--For more information, see the tutorial at the projects [webpage](https://cswaney.github.io/hfttools/).-->
 
-## Tips
-Create massive datasets quickly by running jobs simultaneously (e.g. on your university's cluster). All databases support simultaneous read/write.  
+## Tip
+Create massive datasets quickly by running jobs simultaneously (e.g. on your university's cluster). <!--All databases support simultaneous read/write.-->
 
 ## License
 This package is released under an MIT license. Please cite me (e.g. HFTTools (Version 0.0.2, 2016)).
