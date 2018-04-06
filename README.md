@@ -74,21 +74,25 @@ Finally, `unpack` provides two methods for storing the processed data.
 ## Examples
 
 ## Installation
-![alt text](https://img.shields.io/pypi/v/hfttools.svg "pypi")
+<!--![alt text](https://img.shields.io/pypi/v/hfttools.svg "pypi")-->
 
 ### Requirements
-This package runs on **Python3.5**. By default, the data is stored in text/comma-separated files. You will need the following to create HDF5 <!--or PostgreSQL--> databases (these are **not** installed automatically):
+This package requires **Python 3**. By default, the data is stored in text files. You will need the following to create HDF5 <!--or PostgreSQL--> databases (these are **not** installed automatically):
 
 1. [HDF5](https://www.hdfgroup.org).
 <!--2. [PostgreSQL](https://www.postgresql.org)-->
 
-After you have installed and configured these, simply install using the Python package manager. We recommend using a virtual environment:
+After you have installed and configured these, install prickle using the formula below:
 
 ```
-virtualenv -p python3 venv
+python3 -m venv venv
 source venv/bin/activate
-pip install prickle
+git clone https://github.com/cswaney/prickle
+cd prickle
+pip install -e .
 ```
+
+The formula installs the package into a virtual environment in "editable" mode so that any changes you might want to make will take effect the next time you open Python.
 
 ## Basic Usage
 To create a new HDF5 database for AAPL and GOOG stocks from an ITCH data file `S010113-v41.txt`:
