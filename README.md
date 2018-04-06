@@ -1,16 +1,12 @@
-# hfttools
+# prickle
 A Python toolkit for high-frequency trade research.
 
 Website: [https://cswaney.github.io/hfttools/](https://cswaney.github.io/hfttools/)
 
-## What?
-HFT Tools is a Python toolkit for financial researchers. It is designed to make data collection simple.
+## Overview
+Prickle is a Python package for financial researchers. It is designed to simplify the collection of ultra-high-frequency market microstructure data from Nasdaq. The project provides an open-source tool for market microstucture researchers to process Nasdaq HistoricalView-ITCH data. It provides a free alternative to paying for similar data, and establishes a common set of preprocessing steps that can be maintained and improved by the community.
 
-## Why?
-The goal of this project is to provide a common, open-source tool for market microstucture research using NASDAQ HistoricalView-ITCH data. Don't pay for data!
-
-## Sure. But what does is actually do?
-HFT Tools creates scalable, research-ready databases from NASDAQ HistoricalView-ITCH data files. These data files are provided "as is" in a compressed, binary format that is not particularly useful. HFT Tools decodes these files and creates tables containing sequences of messages, reconstructed order books, along with a few other events of interest.
+Prickle creates research-ready databases from Nasdaq HistoricalView-ITCH data files. Raw ITCH files are provided "as is" in a compressed, binary format that is not particularly useful. Prickle decodes these files and creates databases containing sequences of messages, reconstructed order books, along with a few other events of interest.
 
 ## Installation
 ![alt text](https://img.shields.io/pypi/v/hfttools.svg "pypi")

@@ -6,9 +6,11 @@ import os
 import time
 
 ver = 4.1
-_, date = sys.argv
+# _, date = sys.argv
+date = '112013'
 
-root = '/Volumes/datasets/ITCH/'
+# root = '/Volumes/datasets/ITCH/'
+root = '/Users/colinswaney/Data/ITCH/'
 if os.path.exists('{}/csv/{}/'.format(root, date)):
     response = input('A directory already exists for the date provided. Are you sure you want to proceed? [Y/N] ')
     if response == 'Y':
@@ -58,8 +60,9 @@ if proceed:
     columns.extend(['askprc{}'.format(i) for i in range(nlevels)])
     columns.extend(['bidvol{}'.format(i) for i in range(nlevels)])
     columns.extend(['askvol{}'.format(i) for i in range(nlevels)])
-    names = pd.read_csv('{}/SP500.txt'.format(root))['Symbol']
-    names = [name.lstrip(' ') for name in names]
+    # names = pd.read_csv('{}/SP500.txt'.format(root))['Symbol']
+    # names = [name.lstrip(' ') for name in names]
+    names = ['AAPL', 'GOOG']
     with open(system_path + 'system.txt', 'w') as system_file:
         system_file.write('sec,nano,name,event\n')
     for name in names:
@@ -140,7 +143,7 @@ if proceed:
                 elif message.event == 'T':  # trading on nasdaq
                     pass
 
-        # market messages
+        # order messages
         if message_type == 'U':
             message, del_message, add_message = message.split()
             orderlist.complete_message(message)
@@ -160,10 +163,8 @@ if proceed:
             if message.name in names:
                 orderlist.add(message)
                 books[message.name].update(message)
-        elif message_type in ('P'):
-            if message.name in names:
-                pass
 
+        # write messages
         if message_type in ('U', 'E', 'C', 'X', 'D', 'A', 'F'):
             if message.name in names:
                 books_buffer[message.name].append(books[message.name].to_txt())
@@ -178,7 +179,9 @@ if proceed:
                         fout.writelines(messages_buffer[message.name])
                         # print('WROTE {} lines to messages_{}.txt'.format(buffer_size, message.name))
                     messages_buffer[message.name] = []
-        if message_type in ('P'):
+
+        # trade messages
+        if message_type == 'P':
             if message.name in names:
                 trades_buffer[message.name].append(message.to_txt())
                 if len(trades_buffer[message.name]) == buffer_size:
