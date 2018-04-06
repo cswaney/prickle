@@ -32,20 +32,36 @@ class Database():
                 if name in self.file['orderbooks'].keys():
                     print('Overwriting orderbook data for {}'.format(name))
                     del self.file['orderbooks'][name]
+                if name in self.file['trades'].keys():
+                    print('Overwriting trades data for {}'.format(name))
+                    del self.file['trades'][name]
+                if name in self.file['noii'].keys():
+                    print('Overwriting noii data for {}'.format(name))
+                    del self.file['noii'][name]
         except OSError as e:
             print('HDF5 file does not exist. Creating a new one.')
             self.file = h5py.File(path, 'x')  # create file, fail if exists
         # open groups, create otherwise
         self.messages = self.file.require_group('messages')
         self.orderbooks = self.file.require_group('orderbooks')
+        self.trades = self.file.require_group('trades')
+        self.noii = self.file.require_group('noii')
         # open datasets, create otherwise
         for name in names:
             self.messages.require_dataset(name,
-                                          shape=(0,9),
+                                          shape=(0, 9),
                                           maxshape=(None,None),
                                           dtype='i')
             self.orderbooks.require_dataset(name,
-                                            shape=(0,4 * nlevels + 2),
+                                            shape=(0, 4 * nlevels + 2),
+                                            maxshape=(None,None),
+                                            dtype='i')
+            self.trades.require_dataset(name,
+                                        shape=(0, 5),
+                                        maxshape=(None,None),
+                                        dtype='i')
+            self.noii.require_dataset(name,
+                                            shape=(0, 12),
                                             maxshape=(None,None),
                                             dtype='i')
 
@@ -248,48 +264,25 @@ class Message():
         values.append(int(self.sec))
         values.append(int(self.nano))
 
-        if self.type == 'T':  # timestamp
+        # type
+        if self.type == 'A':  # add
             values.append(0)
-        elif self.type == 'S':  # system
+        elif self.type == 'F':  # add w/mpid
             values.append(1)
-        elif self.type in ('A', 'F'):  # adds
-            values.append(2)
         elif self.type == 'X':  # cancel
-            values.append(3)
-        elif self.type == 'D':  # delete
-            values.append(4)
-        elif self.type == 'E':  # execute
-            values.append(5)
-        elif self.type == 'C':  # execute w/ price
-            values.append(6)
-        elif self.type == 'U':  # replace
-            values.append(7)
-        elif self.type == 'P':  # trade (hidden)
-            values.append(8)
-        else:
-            values.append(-1)  # other (ignored)
-
-        if self.event == 'O':    # start messages
-            values.append(0)
-        elif self.event == 'S':  # start system hours
-            values.append(1)
-        elif self.event == 'Q':  # start market hours
             values.append(2)
-        elif self.event == 'M':  # end market hours
+        elif self.type == 'D':  # delete
             values.append(3)
-        elif self.event == 'E':  # end system hours
+        elif self.type == 'E':  # execute
             values.append(4)
-        elif self.event == 'C':  # end messages
+        elif self.type == 'C':  # execute w/price
             values.append(5)
-        elif self.event == 'A':  # halt trading
+        elif self.type == 'U':  # replace
             values.append(6)
-        elif self.event == 'R':  # quotes only
-            values.append(7)
-        elif self.event == 'B':  # resume trading
-            values.append(8)
         else:
-            values.append(-1)  # no event
+            value.append(-1)
 
+        # side
         if self.buysell == 'B':  # bid
             values.append(1)
         elif self.buysell == 'S':  # ask
@@ -297,10 +290,77 @@ class Message():
         else:
             values.append(0)
 
+        # price
         values.append(int(self.price))
+
+        # shares
         values.append(int(self.shares))
-        values.append(int(self.refno))
-        values.append(int(self.newrefno))
+
+        # refno
+        if self.type in ('A', 'F', 'X', 'D', 'E', 'C', 'U'):
+            values.append(int(self.refno))
+        else:
+            values.append(-1)
+
+        # newrefno
+        if self.type == 'U':
+            values.append(int(self.newrefno))
+        else:
+            values.append(-1)
+
+        # if self.type == 'T':  # timestamp
+        #     values.append(0)
+        # elif self.type == 'S':  # system
+        #     values.append(1)
+        # elif self.type in ('A', 'F'):  # adds
+        #     values.append(2)
+        # elif self.type == 'X':  # cancel
+        #     values.append(3)
+        # elif self.type == 'D':  # delete
+        #     values.append(4)
+        # elif self.type == 'E':  # execute
+        #     values.append(5)
+        # elif self.type == 'C':  # execute w/ price
+        #     values.append(6)
+        # elif self.type == 'U':  # replace
+        #     values.append(7)
+        # elif self.type == 'P':  # trade (hidden)
+        #     values.append(8)
+        # else:
+        #     values.append(-1)  # other (ignored)
+        #
+        # if self.event == 'O':    # start messages
+        #     values.append(0)
+        # elif self.event == 'S':  # start system hours
+        #     values.append(1)
+        # elif self.event == 'Q':  # start market hours
+        #     values.append(2)
+        # elif self.event == 'M':  # end market hours
+        #     values.append(3)
+        # elif self.event == 'E':  # end system hours
+        #     values.append(4)
+        # elif self.event == 'C':  # end messages
+        #     values.append(5)
+        # elif self.event == 'A':  # halt trading
+        #     values.append(6)
+        # elif self.event == 'R':  # quotes only
+        #     values.append(7)
+        # elif self.event == 'B':  # resume trading
+        #     values.append(8)
+        # else:
+        #     values.append(-1)  # no event
+        #
+        # if self.buysell == 'B':  # bid
+        #     values.append(1)
+        # elif self.buysell == 'S':  # ask
+        #     values.append(-1)
+        # else:
+        #     values.append(0)
+        #
+        # values.append(int(self.price))
+        # values.append(int(self.shares))
+        # values.append(int(self.refno))
+        # values.append(int(self.newrefno))
 
         return np.array(values)
 
@@ -565,7 +625,7 @@ class Messagelist():
     --------
     Create a MessageList::
 
-    >> msglist = hft.Messagelist(date='01012013', names=['GOOG', 'AAPL'])
+    >> msglist = hft.Messagelist(date='112013', names=['GOOG', 'AAPL'])
 
     """
 
@@ -591,8 +651,8 @@ class Messagelist():
             db_size, db_cols = db.messages[name].shape  # rows
             array_size, array_cols = array.shape
             db_resize = db_size + array_size
-            db.messages[name].resize((db_resize,db_cols))
-            db.messages[name][db_size:db_resize,:] = array
+            db.messages[name].resize((db_resize, db_cols))
+            db.messages[name][db_size:db_resize, :] = array
             self.messages[name] = []  # reset
         print('wrote {} messages to dataset (name={})'.format(len(m), name))
 
@@ -1312,20 +1372,20 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
                 pass  # quote only
             elif message.event == 'B':
                 pass  # resume trading
-            input('PAUSED (press any button to continue).')
-
-        # if message_type == 'H':
-        #     # print('TRADE-ACTION MESSAGE: {}'.format(message.event))
-        #     if message.event in ('H','P','V'):
-        #         pass  # remove message.name from names
-        #     elif message.event == 'T':
-        #         pass  # add message.name to names (check that it isn't there already)
-        #     elif message.event in ('Q','R'):
-        #         pass  # quote only (only accepting A, F, X, D, U)
+            # input('PAUSED (press any button to continue).')
+        if message_type == 'H':
+            # print('TRADE-ACTION MESSAGE: {}'.format(message.event))
+            if message.event in ('H','P','V'):
+                pass  # remove message.name from names
+            elif message.event == 'T':
+                pass  # add message.name to names (check that it isn't there already)
+            elif message.event in ('Q','R'):
+                pass  # quote only (only accepting A, F, X, D, U)
 
         # complete message
         if message_type == 'U':
-            del_message, add_message = message.split()
+            message, del_message, add_message = message.split()
+            orderlist.complete_message(message)
             orderlist.complete_message(del_message)
             orderlist.complete_message(add_message)
         elif message_type in ('E', 'C', 'X', 'D'):
@@ -1333,60 +1393,44 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
 
         # update orders
         if message_type == 'U':
-            if del_message.name in names:
+            if message.name in names:
                 orderlist.update(del_message)
-                print(del_message)
-            if add_message.name in names:
+                # print(del_message)
                 orderlist.add(add_message)
-                print(add_message)
+                # print(add_message)
         elif message_type in ('E', 'C', 'X', 'D'):
             if message.name in names:
                 orderlist.update(message)
-                print(message)
+                # print(message)
         elif message_type in ('A', 'F'):
             if message.name in names:
                 orderlist.add(message)
-                print(message)
-        elif message_type in ('P'):
-            print(message)
+                # print(message)
 
         # update messages, books, and write to disk
         if method == 'hdf5':
-            if message_type == 'U':
-                if del_message.name in names:
-                    messagelist.add(del_message)
-                    # print('{} message added to list'.format(del_message.type))
-                    msgs = len(messagelist.messages[del_message.name])
-                    if msgs == MAXROWS:
-                        messagelist.to_hdf5(name=del_message.name, db=db)
-                    booklist.update(del_message)
-                    # print('{} book was updated.'.format(del_message.name))
-                    bks = len(booklist.books[del_message.name]['hist'])
-                    if bks == MAXROWS:
-                        booklist.to_hdf5(name=del_message.name, db=db)
-                if add_message.name in names:
-                    messagelist.add(add_message)
-                    # print('{} message added to list'.format(add_message.type))
-                    msgs = len(messagelist.messages[add_message.name])
-                    if msgs == MAXROWS:
-                        messagelist.to_hdf5(name=add_message.name, db=db)
-                    booklist.update(add_message)
-                    # print('{} book was updated.'.format(add_message.name))
-                    bks = len(booklist.books[add_message.name]['hist'])
-                    if bks == MAXROWS:
-                        booklist.to_hdf5(name=add_message.name, db=db)
-            elif message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
+            if message_type in ('U', 'A', 'F', 'E', 'C', 'X', 'D'):
                 if message.name in names:
                     messagelist.add(message)
-                    # print('{} message added to list'.format(message.type))
                     msgs = len(messagelist.messages[message.name])
                     if msgs == MAXROWS:
                         messagelist.to_hdf5(name=message.name, db=db)
                     booklist.update(message)
-                    # print('{} book was updated.'.format(message.name))
                     bks = len(booklist.books[message.name]['hist'])
                     if bks == MAXROWS:
                         booklist.to_hdf5(name=message.name, db=db)
+            elif message_type == 'P':
+                # if message.name in names:
+                    # add to trades buffer?
+                    # if length of trades buffer hits buffer_size:
+                        # write to file
+                pass
+            elif message_type == 'Q':
+                # add to noii buffer
+                pass
+            elif message_type == 'I':
+                # add to noii buffer
+                pass
         elif method == 'postgres':
             if message_type == 'U':
                 if del_message.name in names:
