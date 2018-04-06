@@ -98,19 +98,19 @@ import prickle as pk
 
 pk.unpack(fin='itch_010113.bin',
           ver=4.1,
-	        date='2013-01-01',
-    	    fout='itch.hdf5'
-	        nlevels=10,
-	        names=['GOOG', 'AAPL'],
-	        method='hdf5')
+          date='2013-01-01',
+          fout='itch.hdf5'
+          nlevels=10,
+          names=['GOOG', 'AAPL'],
+          method='hdf5')
 ```
 
 This will create a file `itch.hdf5` containing message and order book data for Google and Apple. To read the order book data back into your Python session, use `pk.read`:
 
 ```python
 pk.read(db='itch.hdf5',
-	      date='2013-01-01',
-	      names='GOOG')
+        date='2013-01-01',
+        names='GOOG')
 ```
 
 
