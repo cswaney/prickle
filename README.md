@@ -87,36 +87,35 @@ After you have installed and configured these, simply install using the Python p
 ```
 virtualenv -p python3 venv
 source venv/bin/activate
-pip install hfttools
+pip install prickle
 ```
 
 ## Basic Usage
 To create a new HDF5 database for AAPL and GOOG stocks from an ITCH data file `S010113-v41.txt`:
 
 ```python
-import hfttools as hft
+import prickle as pk
 
-hft.unpack(fin='itch_010113.bin',
-           ver=4.1,
-	   date='2013-01-01',
-	   fout='itch.hdf5'
-	   nlevels=10,
-	   names=['GOOG', 'AAPL'],
-	   method='hdf5')
+pk.unpack(fin='itch_010113.bin',
+          ver=4.1,
+	        date='2013-01-01',
+    	    fout='itch.hdf5'
+	        nlevels=10,
+	        names=['GOOG', 'AAPL'],
+	        method='hdf5')
 ```
 
-This will create a file `itch.hdf5` containing message and order book data for Google and Apple. To read the order book data back into your Python session, use `hft.read`:
+This will create a file `itch.hdf5` containing message and order book data for Google and Apple. To read the order book data back into your Python session, use `pk.read`:
 
 ```python
-hft.read(db='itch.hdf5',
-	 date='2013-01-01',
-	 names='GOOG')
+pk.read(db='itch.hdf5',
+	      date='2013-01-01',
+	      names='GOOG')
 ```
 
-<!--For more information, see the tutorial at the projects [webpage](https://cswaney.github.io/hfttools/).-->
 
 ## Tip
-Create massive datasets quickly by running jobs simultaneously (e.g. on your university's cluster). <!--All databases support simultaneous read/write.-->
+Create massive datasets quickly by running jobs simultaneously (e.g. on your university's cluster).
 
 ## License
-This package is released under an MIT license. Please cite me (e.g. HFTTools (Version 0.0.2, 2016)).
+This package is released under an MIT license. Please cite me (e.g. Prickle (Version 0.1, 2018)).

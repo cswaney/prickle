@@ -67,7 +67,6 @@ class Database():
     def close(self):
         self.file.close()
 
-
 # TODO: Make the different types of messages sub-classes of Message?
 class Message():
     """A class representing out-going messages from the NASDAQ system.
@@ -557,7 +556,7 @@ class Messagelist():
     --------
     Create a MessageList::
 
-    >> msglist = hft.Messagelist(date='112013', names=['GOOG', 'AAPL'])
+    >> msglist = pk.Messagelist(date='112013', names=['GOOG', 'AAPL'])
 
     """
 
@@ -907,7 +906,7 @@ class Booklist():
     --------
     Create a Booklist::
 
-    >> booklist = hft.BookList(['GOOG', 'AAPL'], levels=10)
+    >> booklist = pk.BookList(['GOOG', 'AAPL'], levels=10)
 
     Attributes
     ----------
