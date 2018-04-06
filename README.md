@@ -10,14 +10,13 @@ HFT Tools is a Python toolkit for financial researchers. It is designed to make 
 The goal of this project is to provide a common, open-source tool for market microstucture research using NASDAQ HistoricalView-ITCH data. Don't pay for data!
 
 ## Sure. But what does is actually do?
-HFT Tools creates scalable, research-ready databases from NASDAQ HistoricalView-ITCH data files. These data files are provided "as is" in a compressed, binary format that is not particularlyl useful. HFT Tools decodes these files and creates tables containing the time series of messages as well as the time series of reconstructed order books.  
+HFT Tools creates scalable, research-ready databases from NASDAQ HistoricalView-ITCH data files. These data files are provided "as is" in a compressed, binary format that is not particularly useful. HFT Tools decodes these files and creates tables containing sequences of messages, reconstructed order books, along with a few other events of interest.
 
 ## Installation
 ![alt text](https://img.shields.io/pypi/v/hfttools.svg "pypi")
 
 ### Requirements
-
-This package runs on **Python3.5**. You will also need the following to create databases (these are **not** installed automatically):
+This package runs on **Python3.5**. By default, the data is stored in text/comma-separated files. You will need the following to create HDF5 or PostgreSQL databases (these are **not** installed automatically):
 
 1. [HDF5](https://www.hdfgroup.org).
 2. [PostgreSQL](https://www.postgresql.org)
@@ -31,7 +30,6 @@ pip install hfttools
 ```
 
 ## Basic Usage
-
 To create a new HDF5 database from an ITCH data file `itch_010113`:
 
 ```python
@@ -54,12 +52,10 @@ hft.read(db='itch.hdf5',
          names='GOOG')
 ```
 
-For more information, see our tutorial at the projects [webpage](https://www.google.com).
+For more information, see the tutorial at the projects [webpage](https://cswaney.github.io/hfttools/).
 
 ## Tips
-
 Create massive datasets quickly by running jobs simultaneously (e.g. on your university's cluster). All databases support simultaneous read/write.  
 
 ## License
-
-This package is released under an MIT license. Please cite me (e.g. HFTTools (Version 0.0.2, 2016)). 
+This package is released under an MIT license. Please cite me (e.g. HFTTools (Version 0.0.2, 2016)).
