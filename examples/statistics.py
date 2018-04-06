@@ -1,4 +1,4 @@
-from hfttools import nodups, find_trades
+from prickle import nodups, find_trades
 import pandas as pd
 import numpy as np
 import os

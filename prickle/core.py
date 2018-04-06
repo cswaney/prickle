@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
-import psycopg2 as pg
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
 import struct
 import h5py
 import time
@@ -68,73 +67,6 @@ class Database():
     def close(self):
         self.file.close()
 
-class Postgres():
-    """A connection to a PostgreSQL database to storing message and order book data.
-
-    Parameters
-    ----------
-    host : string
-        Host for the Postgres connection
-    user : string
-        Username for the Postgres connection
-    nlevels : int
-        Specifies the number of levels to include in the order book data
-    """
-
-    def __init__(self, host, user, nlevels):
-
-        self.host = host
-        self.user = user
-        self.nlevels = nlevels
-
-        # create column info
-        msg_sql = """create table messages (date varchar,
-                                            name varchar,
-                                            sec integer,
-                                            nano integer,
-                                            type varchar,
-                                            event varchar,
-                                            buysell varchar,
-                                            price integer,
-                                            shares integer,
-                                            refno integer,
-                                            newrefno integer)"""
-
-        cols = ['date date',
-                'name varchar',
-                'sec integer',
-                'nano integer']
-        cols.extend(['bid_prc_' + str(i) + ' integer' for i in range(1,nlevels+1)])
-        cols.extend(['ask_prc_' + str(i) + ' integer' for i in range(1,nlevels+1)])
-        cols.extend(['bid_vol_' + str(i) + ' integer' for i in range(1,nlevels+1)])
-        cols.extend(['ask_vol_' + str(i) + ' integer' for i in range(1,nlevels+1)])
-        col_sql = ', '.join(cols)
-        book_sql = 'create table orderbooks (' + col_sql + ')'
-
-        # open connection to database
-        try:
-            conn = pg.connect(host=self.host, user=self.user)
-            with conn.cursor() as cur:
-                try:  # create message table
-                    cur.execute(msg_sql)
-                    conn.commit()
-                except pg.Error as e:
-                    print(e.pgerror)
-                try:  # create orderbook table
-                    cur.execute(book_sql)
-                    conn.commit()
-                except pg.Error as e:
-                    print(e.pgerror)
-            conn.close()
-            print('Created a new PostgreSQL database.')
-        except pg.Error as e:
-            print('ERROR: unable to connect to database.')
-
-    def open(self):
-        self.conn = pg.connect(host=self.host, user=self.user)
-
-    def close(self):
-        self.conn.close()
 
 # TODO: Make the different types of messages sub-classes of Message?
 class Message():

@@ -1,4 +1,4 @@
-import core as hft
+from prickle import unpack
 import datetime
 import sys
 import time
@@ -26,6 +26,6 @@ method = 'hdf5'
 print("Unpacking data for date {}".format(date))
 
 start = time.time()
-hft.unpack(fin, ver, date, nlevels, names, method='hdf5', fout=fout)
+unpack(fin, ver, date, nlevels, names, method='hdf5', fout=fout)
 stop = time.time()
 print("Process took {} seconds".format(stop - start))

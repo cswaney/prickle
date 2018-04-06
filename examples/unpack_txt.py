@@ -1,4 +1,4 @@
-import hfttools as hft
+import prickle as pk
 import pandas as pd
 import datetime
 import sys
@@ -83,11 +83,11 @@ if proceed:
     messages_buffer = {}
     trades_buffer = {}
     for name in names:
-        books[name] = hft.Book(date, name, nlevels)
+        books[name] = pk.Book(date, name, nlevels)
         books_buffer[name] = []
         messages_buffer[name] = []
         trades_buffer[name] = []
-    orderlist = hft.Orderlist()
+    orderlist = pk.Orderlist()
     message_count = 0
     buffer_size = 10000
     clock = 0
@@ -96,10 +96,10 @@ if proceed:
     while reading:
 
         # parse message
-        message_size = hft.get_message_size(data.read(2))
-        message_type = hft.get_message_type(data.read(1))
+        message_size = pk.get_message_size(data.read(2))
+        message_type = pk.get_message_type(data.read(1))
         message_bytes = data.read(message_size - 1)
-        message = hft.get_message(message_bytes, message_type, date, clock, ver)
+        message = pk.get_message(message_bytes, message_type, date, clock, ver)
         message_count += 1
 
         # timestamps

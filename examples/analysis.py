@@ -1,12 +1,9 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from hfttools import nodups
+from matplotlib import pyplot as plt
+from prickle import nodups
 
 """Aggregate Analysis"""
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 
 # message counts
 message_counts = pd.read_csv('/Volumes/datasets/ITCH/stats/message_counts.txt', index_col=0)
