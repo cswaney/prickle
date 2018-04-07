@@ -19,7 +19,7 @@ class Database():
 
     """
 
-    def __init__(self, path, names, nlevels):
+    def __init__(self, path, names, nlevels, method):
         # open file, create otherwise
         try:
             self.file = h5py.File(path, 'r+')  # read/write, file must exist
@@ -48,7 +48,7 @@ class Database():
         # open datasets, create otherwise
         for name in names:
             self.messages.require_dataset(name,
-                                          shape=(0, 9),
+                                          shape=(0, 8),
                                           maxshape=(None,None),
                                           dtype='i')
             self.orderbooks.require_dataset(name,
@@ -60,9 +60,9 @@ class Database():
                                         maxshape=(None,None),
                                         dtype='i')
             self.noii.require_dataset(name,
-                                            shape=(0, 12),
-                                            maxshape=(None,None),
-                                            dtype='i')
+                                      shape=(0, 14),
+                                      maxshape=(None,None),
+                                      dtype='i')
 
     def close(self):
         self.file.close()
@@ -195,6 +195,25 @@ class Message():
         values.append(int(self.sec))
         values.append(int(self.nano))
 
+        # if self.type in ('A', 'F', 'X', 'D', 'E', 'C', 'U'):
+        #     sec = self.sec
+        #     nano = self.nano
+        #     if self.side == 'B':
+        #         side = -1
+        #     else:
+        #         side = 1
+        #     price = self.price
+        #     shares = self.shares
+        #     values = [sec, nano, side, price, shares]
+
+        if self.type == 'P':
+            if self.buysell == 'B':
+                side = -1
+            else:
+                side = 1
+            values = [self.sec, self.nano, side, self.price, self.shares]
+            return np.array(values)
+
         # type
         if self.type == 'A':  # add
             values.append(0)
@@ -238,60 +257,6 @@ class Message():
             values.append(int(self.newrefno))
         else:
             values.append(-1)
-
-        # if self.type == 'T':  # timestamp
-        #     values.append(0)
-        # elif self.type == 'S':  # system
-        #     values.append(1)
-        # elif self.type in ('A', 'F'):  # adds
-        #     values.append(2)
-        # elif self.type == 'X':  # cancel
-        #     values.append(3)
-        # elif self.type == 'D':  # delete
-        #     values.append(4)
-        # elif self.type == 'E':  # execute
-        #     values.append(5)
-        # elif self.type == 'C':  # execute w/ price
-        #     values.append(6)
-        # elif self.type == 'U':  # replace
-        #     values.append(7)
-        # elif self.type == 'P':  # trade (hidden)
-        #     values.append(8)
-        # else:
-        #     values.append(-1)  # other (ignored)
-        #
-        # if self.event == 'O':    # start messages
-        #     values.append(0)
-        # elif self.event == 'S':  # start system hours
-        #     values.append(1)
-        # elif self.event == 'Q':  # start market hours
-        #     values.append(2)
-        # elif self.event == 'M':  # end market hours
-        #     values.append(3)
-        # elif self.event == 'E':  # end system hours
-        #     values.append(4)
-        # elif self.event == 'C':  # end messages
-        #     values.append(5)
-        # elif self.event == 'A':  # halt trading
-        #     values.append(6)
-        # elif self.event == 'R':  # quotes only
-        #     values.append(7)
-        # elif self.event == 'B':  # resume trading
-        #     values.append(8)
-        # else:
-        #     values.append(-1)  # no event
-        #
-        # if self.buysell == 'B':  # bid
-        #     values.append(1)
-        # elif self.buysell == 'S':  # ask
-        #     values.append(-1)
-        # else:
-        #     values.append(0)
-        #
-        # values.append(int(self.price))
-        # values.append(int(self.shares))
-        # values.append(int(self.refno))
-        # values.append(int(self.newrefno))
 
         return np.array(values)
 
@@ -452,54 +417,54 @@ class NOIIMessage():
     def to_array(self):
         """Returns message as an np.array of integers."""
 
-        values = []
-        values.append(int(self.sec))
-        values.append(int(self.nano))
-
         if self.type == 'Q':  # cross trade
-            values.append(0)
+            type = 0
         elif self.type == 'I':  # noii
-            values.append(1)
+            type = 1
         else:
-            values.append(-1)  # other (ignored)
+            type = -1
             print('Unexpected NOII message type: {}'.format(self.type))
 
         if self.cross == 'O':    # opening cross
-            values.append(0)
+            cross = 0
         elif self.cross == 'C':  # closing cross
-            values.append(1)
+            cross = 1
         elif self.cross == 'H':  # halted cross
-            values.append(2)
+            cross = 2
         elif self.cross == 'I':  # intraday cross
-            values.append(3)
+            cross = 3
         else:
+            cross = -1
             print('Unexpected cross type: {}'.format(self.cross))
-            values.append(-1)  # mistake occurred
 
         if self.buysell == 'B':  # bid
-            values.append(1)
+            side = 1
         elif self.buysell == 'S':  # ask
-            values.append(-1)
+            side = -1
         else:
-            values.append(0)
-
-        values.append(int(self.price))
-        values.append(int(self.shares))
-        values.append(int(self.matchno))
-        values.append(int(self.paired))
-        values.append(int(self.imbalance))
+            side = 0
 
         if self.direction == 'B':  # bid
-            values.append(1)
+            dir = 1
         elif self.direction == 'S':  # ask
-            values.append(-1)
+            dir = -1
         else:
-            values.append(0)
+            dir = 0
 
-        values.append(int(self.far))
-        values.append(int(self.near))
-        values.append(int(self.current))
-
+        values =[self.sec,
+                 self.nano,
+                 type,
+                 cross,
+                 side,
+                 self.price,
+                 self.shares,
+                 self.matchno,
+                 self.paired,
+                 self.imbalance,
+                 dir,
+                 self.far,
+                 self.near,
+                 self.current]
         return np.array(values)
 
     def to_txt(self, path):
@@ -534,6 +499,92 @@ class NOIIMessage():
                     str(self.current / 10 ** 4)]
         with open(path, 'a') as fout:
             fout.write(sep.join(line) + '\n')
+
+class Trade():
+    """A class representing trades on the NASDAQ system.
+
+    Parameters
+    ----------
+    date: int
+        Date
+    sec : int
+        Seconds
+    nano : int
+        Nanoseconds
+    name : string
+        Stock ticker
+    side : string
+        Buy or sell
+    price : int
+        Trade price
+    shares : int
+        Shares
+    """
+
+    def __init__(self, date='.', sec=-1, nano=-1, name='.', side='.', price=-1, shares=0):
+        self.date = date
+        self.name = name
+        self.sec = sec
+        self.nano = nano
+        self.side = side
+        self.price = price
+        self.shares = shares
+
+    def __str__(self):
+        sep = ', '
+        line = ['sec: ' + str(self.sec),
+                'nano: ' + str(self.nano),
+                'name: ' + str(self.name),
+                'side: ' + str(self.buysell),
+                'price: ' + str(self.price),
+                'shares: ' + str(self.shares)]
+        return sep.join(line)
+
+    def __repr__(self):
+        sep = ', '
+        line = ['sec: ' + str(self.sec),
+                'nano: ' + str(self.nano),
+                'name: ' + str(self.name),
+                'side: ' + str(self.buysell),
+                'price: ' + str(self.price),
+                'shares: ' + str(self.shares)]
+        return 'Trade(' + sep.join(line) + ')'
+
+    def to_list(self):
+        """Returns message as a list."""
+
+        values = []
+        values.append(str(self.date))
+        values.append(str(self.name))
+        values.append(int(self.sec))
+        values.append(int(self.nano))
+        values.append(str(self.side))
+        values.append(int(self.price))
+        values.append(int(self.shares))
+        return values
+
+    def to_array(self):
+        """Returns message as an np.array of integers."""
+
+        if self.side == 'B':
+            side = -1
+        else:
+            side = 1
+        return np.array([self.sec, self.nano, side, self.price, self.shares])
+
+    def to_txt(self, path=None):
+        sep = ','
+        line = [str(self.sec),
+                str(self.nano),
+                str(self.name),
+                str(self.side),
+                str(self.shares),
+                str(self.price / 10 ** 4)]
+        if path is None:
+            return sep.join(line) + '\n'
+        else:
+            with open(path, 'a') as fout:
+                fout.write(sep.join(line) + '\n')
 
 class Messagelist():
     """A class to store messages.
@@ -573,36 +624,32 @@ class Messagelist():
         except KeyError as e:
             print("KeyError: Could not find {} in the message list".format(message.name))
 
-    def to_hdf5(self, name, db):
+    def to_hdf5(self, name, db, grp):
         """Write messages to HDF5 file."""
         m = self.messages[name]
         if len(m) > 0:
             listed = [message.to_array() for message in m]
             array = np.array(listed)
-            db_size, db_cols = db.messages[name].shape  # rows
-            array_size, array_cols = array.shape
-            db_resize = db_size + array_size
-            db.messages[name].resize((db_resize, db_cols))
-            db.messages[name][db_size:db_resize, :] = array
+            if grp == 'messages':
+                db_size, db_cols = db.messages[name].shape  # rows
+                array_size, array_cols = array.shape
+                db_resize = db_size + array_size
+                db.messages[name].resize((db_resize, db_cols))
+                db.messages[name][db_size:db_resize, :] = array
+            if grp == 'trades':
+                db_size, db_cols = db.trades[name].shape  # rows
+                array_size, array_cols = array.shape
+                db_resize = db_size + array_size
+                db.trades[name].resize((db_resize, db_cols))
+                db.trades[name][db_size:db_resize, :] = array
+            if grp == 'noii':
+                db_size, db_cols = db.noii[name].shape  # rows
+                array_size, array_cols = array.shape
+                db_resize = db_size + array_size
+                db.noii[name].resize((db_resize, db_cols))
+                db.noii[name][db_size:db_resize, :] = array
             self.messages[name] = []  # reset
-        print('wrote {} messages to dataset (name={})'.format(len(m), name))
-
-    def to_postgres(self, name, db):
-        """Write messages to PostgreSQL database."""
-        db.open()
-        m = self.messages[name]
-        listed = [message.to_list() for message in m]
-        with db.conn.cursor() as cursor:
-            for message in listed:
-                try:
-                    cursor.execute('insert into messages values%s;',
-                                   [tuple(message)])  # %s becomes "(x,..., x)"
-                except pg.Error as e:
-                    print(e.pgerror)
-        db.conn.commit()
-        db.close()
-        self.messages[name] = [] # reset
-        print('wrote {} messages to table (name={})'.format(len(m), name))
+        print('wrote {} messages to database (name={}, group={})'.format(len(m), name, grp))
 
 class Order():
     """A class to represent limit orders.
@@ -944,21 +991,6 @@ class Booklist():
             self.books[name]['hist'] = []  # reset
         print('wrote {} books to dataset (name={})'.format(len(hist), name))
 
-    def to_postgres(self, name, db):
-        """Write Book data to PostgreSQL database."""
-        db.open()
-        hist = self.books[name]['hist']
-        with db.conn.cursor() as cursor:
-            for book in hist:
-                try:
-                    cursor.execute('insert into orderbooks values%s;', [tuple(book)])  # %s becomes "(x,..., x)"
-                except pg.Error as e:
-                    print(e.pgerror)
-        db.conn.commit()
-        db.close()
-        self.books[name]['hist'] = []  # reset
-        print('wrote {} books to table (name={})'.format(len(hist),name))
-
 def get_message_size(size_in_bytes):
     """Return number of bytes in binary message as an integer."""
     (message_size,) = struct.unpack('>H', size_in_bytes)
@@ -1246,7 +1278,7 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
 
     This method reads binary data from a ITCH data file, converts it into human-readable data, then saves time series of out-going messages as well as reconstructed order book snapshots to a research database.
 
-    The version number of the ITCH data is specified as a float. Supported versions are: 4.0, 4.1, and 5.0.
+    The version number of the ITCH data is specified as a float. Supported versions are: 4.1.
 
     """
 
@@ -1256,21 +1288,18 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
     messagelist = Messagelist(date, names)
 
     if method == 'hdf5':
-        db = Database(fout, names, nlevels)
-    elif method == 'postgres':
-        db = Postgres(host=host, user=user, nlevels=nlevels)
+        db = Database(fout, names, nlevels)  # TODO: method='hdf5'
     elif method == 'csv':
+        # TODO: db = Database(fout, names, nlevels, method='csv')
         pass
     else:
         print('No database option specified. Creating csv files.')
+
     data = open(fin, 'rb')
-
     messagecount = 0
-
     reading = True
-    writing = False
+    # writing = False
     clock = 0
-
     start = time.time()
 
     # unpacking
@@ -1285,33 +1314,44 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
 
         # update clock
         if message_type == 'T':
-            if message.sec % 60 == 0:
+            if message.sec % 1800 == 0:
                 print('TIME={}'.format(message.sec))
-                # pass
             clock = message.sec
 
         # update system
         if message_type == 'S':
             print('SYSTEM MESSAGE: {}'.format(message.event))
-            if message.event == 'Q':  # start market
-                writing = True
+            # TODO: write to log file! (message.to_log(log_path))
+            if message.event == 'O':  # start messages
+                pass
+            elif message.event == 'S':  # start system
+                pass
+            elif message.event == 'Q':  # start market hours
+                pass
+            elif message.event == 'A':  # trading halt
+                pass
+            elif message.event == 'R':  # quote only
+                pass
+            elif message.event == 'B':  # resume trading
+                pass
             elif message.event == 'M':  # end market
+                pass
+            elif message.event == 'E':  # end system
+                pass
+            elif message.event == 'C':  # end messages
                 reading = False
-            elif message.event == 'A':
-                pass  # trading halt
-            elif message.event == 'R':
-                pass  # quote only
-            elif message.event == 'B':
-                pass  # resume trading
-            # input('PAUSED (press any button to continue).')
         if message_type == 'H':
-            # print('TRADE-ACTION MESSAGE: {}'.format(message.event))
-            if message.event in ('H','P','V'):
-                pass  # remove message.name from names
-            elif message.event == 'T':
-                pass  # add message.name to names (check that it isn't there already)
-            elif message.event in ('Q','R'):
-                pass  # quote only (only accepting A, F, X, D, U)
+            if message.name in names:
+                # print('TRADING MESSAGE ({}): {}'.format(message.name, message.event))
+                # TODO: write to log (message.to_log('system.log')
+                if message.event == 'H':  # halted (all US)
+                    pass
+                elif message.event == 'P':  # paused (all US)
+                    pass
+                elif message.event == 'Q':  # quotation only
+                    pass
+                elif message.event == 'T':  # trading on nasdaq
+                    pass
 
         # complete message
         if message_type == 'U':
@@ -1319,85 +1359,48 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
             orderlist.complete_message(message)
             orderlist.complete_message(del_message)
             orderlist.complete_message(add_message)
-        elif message_type in ('E', 'C', 'X', 'D'):
-            orderlist.complete_message(message)
-
-        # update orders
-        if message_type == 'U':
             if message.name in names:
                 orderlist.update(del_message)
-                # print(del_message)
+                booklist.update(del_message)
                 orderlist.add(add_message)
-                # print(add_message)
+                booklist.update(add_message)
+                messagelist.add(message)
         elif message_type in ('E', 'C', 'X', 'D'):
+            orderlist.complete_message(message)
             if message.name in names:
                 orderlist.update(message)
-                # print(message)
+                booklist.update(message)
+                messagelist.add(message)
         elif message_type in ('A', 'F'):
             if message.name in names:
                 orderlist.add(message)
-                # print(message)
+                booklist.update(message)
+                messagelist.add(message)
+        # elif message_type == 'P':  # TODO
+        #     if message.name in names:
+        #         tradeslist.add(message)
+        # elif message_type in ('Q', 'I'):
+        #     if message.name in names:
+        #         noiilist.add(message)
 
-        # update messages, books, and write to disk
+        # write
         if method == 'hdf5':
             if message_type in ('U', 'A', 'F', 'E', 'C', 'X', 'D'):
                 if message.name in names:
-                    messagelist.add(message)
-                    msgs = len(messagelist.messages[message.name])
-                    if msgs == MAXROWS:
+                    # messagelist.add(message)
+                    if len(messagelist.messages[message.name]) == MAXROWS:
                         messagelist.to_hdf5(name=message.name, db=db)
-                    booklist.update(message)
-                    bks = len(booklist.books[message.name]['hist'])
-                    if bks == MAXROWS:
+                    # booklist.update(message)
+                    if len(booklist.books[message.name]['hist']) == MAXROWS:
                         booklist.to_hdf5(name=message.name, db=db)
             elif message_type == 'P':
-                # if message.name in names:
-                    # add to trades buffer?
-                    # if length of trades buffer hits buffer_size:
-                        # write to file
-                pass
-            elif message_type == 'Q':
-                # add to noii buffer
-                pass
-            elif message_type == 'I':
-                # add to noii buffer
-                pass
-        elif method == 'postgres':
-            if message_type == 'U':
-                if del_message.name in names:
-                    messagelist.add(del_message)
-                    # print('{} message added to list'.format(del_message.type))
-                    msgs = len(messagelist.messages[del_message.name])
-                    if msgs == MAXROWS:
-                        messagelist.to_postgres(name=del_message.name, db=db)
-                    booklist.update(del_message)
-                    # print('{} book was updated.'.format(del_message.name))
-                    bks = len(booklist.books[del_message.name]['hist'])
-                    if bks == MAXROWS:
-                        booklist.to_postgres(name=del_message.name, db=db)
-                if add_message.name in names:
-                    messagelist.add(add_message)
-                    # print('{} message added to list'.format(add_message.type))
-                    msgs = len(messagelist.messages[add_message.name])
-                    if msgs == MAXROWS:
-                        messagelist.to_postgres(name=add_message.name, db=db)
-                    booklist.update(add_message)
-                    # print('{} book was updated.'.format(add_message.name))
-                    bks = len(booklist.books[add_message.name]['hist'])
-                    if bks == MAXROWS:
-                        booklist.to_postgres(name=add_message.name, db=db)
-            elif message_type in ('A', 'F', 'E', 'C', 'X', 'D'):
                 if message.name in names:
-                    messagelist.add(message)
-                    # print('{} message added to list'.format(message.type))
-                    msgs = len(messagelist.messages[message.name])
-                    if msgs == MAXROWS:
-                        messagelist.to_postgres(name=message.name, db=db)
-                    booklist.update(message)
-                    # print('{} book was updated.'.format(message.name))
-                    bks = len(booklist.books[message.name]['hist'])
-                    if bks == MAXROWS:
-                        booklist.to_postgres(name=message.name, db=db)
+                    if len(tradeslist.trades[message.name]) == MAXROWS:
+                        tradeslist.to_hdf5(name=message.name, db=db)
+            elif message_type in ('Q', 'I'):
+                if message.name in names:
+                    if len(noiilist.messages[message.name]) == MAXROWS:
+                        noiilist.to_hdf5(name=message.name, db=db)
         elif method == 'csv':
             pass
 
@@ -1406,9 +1409,11 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
         if method == 'hdf5':
             messagelist.to_hdf5(name=name, db=db)
             booklist.to_hdf5(name=name, db=db)
-        elif method == 'postgres':
-            messagelist.to_postgres(name=name, db=db)
-            booklist.to_postgres(name=name, db=db)
+            # TODO:
+            # tradeslist.to_hdf5(name=name, db=db)
+            # noiilist.to_hdf5(name=name, db=db)
+        elif method == 'csv':
+            pass
 
     stop = time.time()
 
@@ -1418,118 +1423,106 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
     print('Elapsed time: {} seconds'.format(stop - start))
     print('Messages read: {}'.format(messagecount))
 
-def load_hdf5(db, name):
+def load_hdf5(db, name, grp):
     """Read data from database and return pd.DataFrames."""
-    try:
-        with h5py.File(db, 'r') as f: # read, file must exist
-            try:  # get message data
-                messages = f['/messages/' + name]
-                data = messages[:,:]
-                T,N = data.shape
-                columns = ['sec',
-                           'nano',
-                           'type',
-                           'event',
-                           'buysell',
-                           'price',
-                           'shares',
-                           'refno',
-                           'newrefno']
-                df_message = pd.DataFrame(data,
-                                          index=np.arange(0,T),
-                                          columns=columns)
-            except KeyError as e:
-                print('Could not find name {} in messages'.format(name))
-            try:  # get orderbook data
-                data = f['/orderbooks/' + name]
-                nlevels = int((data.shape[1] - 2) / 4)
-                pidx = list(range(2, 2 + nlevels))
-                pidx.extend(list(range(2 + nlevels, 2 + 2*nlevels)))
-                vidx = list(range(2 + 2*nlevels, 2 + 3*nlevels))
-                vidx.extend(list(range(2 + 3*nlevels, 2 + 4*nlevels)))
-                timestamps = data[:,0:2]
-                prices = data[:, pidx]
-                volume = data[:, vidx]
-                base_columns = [str(i) for i in list(range(1, nlevels + 1))]
-                price_columns = ['bidprc.' + i for i in base_columns]
-                volume_columns = ['bidvol.' + i for i in base_columns]
-                price_columns.extend(['askprc.' + i for i in base_columns])
-                volume_columns.extend(['askvol.' + i for i in base_columns])
-                df_time = pd.DataFrame(timestamps, columns=['sec','nano'])
-                df_price = pd.DataFrame(prices, columns=price_columns)
-                df_volume = pd.DataFrame(volume, columns=volume_columns)
-                df_price = pd.concat([df_time, df_price], axis=1)
-                df_volume = pd.concat([df_time, df_volume], axis=1)
-            except KeyError as e:
-                print('Could not find name {} in orderbooks'.format(name))
-            return (df_message, df_price, df_volume)
-    except OSError as e:
-        print('Could not find file {}'.format(path))
 
-def load_postgres(host, user, name, date):
-    """Read data from PostgreSQL database and return pd.DataFrames."""
+    if grp == 'messages':
+        try:
+            with h5py.File(db, 'r') as f:
+                try:
+                    messages = f['/messages/' + name]
+                    data = messages[:,:]
+                    T,N = data.shape
+                    columns = ['sec',
+                               'nano',
+                               'type',
+                               'side',
+                               'price',
+                               'shares',
+                               'refno',
+                               'newrefno']
+                    df = pd.DataFrame(data, index=np.arange(0,T), columns=columns)
+                    return df
+                except KeyError as e:
+                    print('Could not find name {} in messages'.format(name))
+        except OSError as e:
+            print('Could not find file {}'.format(path))
 
-    msg_sql = """
-    select *
-    from messages
-    where name = %s
-    and date = %s
-    order by sec, nano
-    """
+    if grp == 'books':
+        try:
+            with h5py.File(db, 'r') as f:
+                try:
+                    data = f['/orderbooks/' + name]
+                    nlevels = int((data.shape[1] - 2) / 4)
+                    pidx = list(range(2, 2 + nlevels))
+                    pidx.extend(list(range(2 + nlevels, 2 + 2*nlevels)))
+                    vidx = list(range(2 + 2*nlevels, 2 + 3*nlevels))
+                    vidx.extend(list(range(2 + 3*nlevels, 2 + 4*nlevels)))
+                    timestamps = data[:,0:2]
+                    prices = data[:, pidx]
+                    volume = data[:, vidx]
+                    base_columns = [str(i) for i in list(range(1, nlevels + 1))]
+                    price_columns = ['bidprc.' + i for i in base_columns]
+                    volume_columns = ['bidvol.' + i for i in base_columns]
+                    price_columns.extend(['askprc.' + i for i in base_columns])
+                    volume_columns.extend(['askvol.' + i for i in base_columns])
+                    df_time = pd.DataFrame(timestamps, columns=['sec','nano'])
+                    df_price = pd.DataFrame(prices, columns=price_columns)
+                    df_volume = pd.DataFrame(volume, columns=volume_columns)
+                    df_price = pd.concat([df_time, df_price], axis=1)
+                    df_volume = pd.concat([df_time, df_volume], axis=1)
+                    return df_price, df_volume
+                except KeyError as e:
+                    print('Could not find name {} in orderbooks'.format(name))
+        except OSError as e:
+            print('Could not find file {}'.format(path))
 
-    book_sql = """
-    select *
-    from orderbooks
-    where name = %s
-    and date = %s
-    order by sec, nano
-    """
+    if grp == 'trades':
+        try:
+            with h5py.File(db, 'r') as f:
+                try:
+                    messages = f['/trades/' + name]
+                    data = messages[:,:]
+                    T,N = data.shape
+                    columns = ['sec',
+                               'nano',
+                               'side',
+                               'price',
+                               'shares']
+                    df = pd.DataFrame(data, index=np.arange(0,T), columns=columns)
+                    return df
+                except KeyError as e:
+                    print('Could not find name {} in messages'.format(name))
+        except OSError as e:
+            print('Could not find file {}'.format(path))
 
-    # open connection to database
-    try:
-        conn = pg.connect(host=host, user=user)
-        with conn.cursor() as cur:
-            try:  # select message data
-                cur.execute(msg_sql, [name, date])
-                conn.commit()
-                columns = ['date',
-                           'sec',
-                           'nano',
-                           'type',
-                           'event',
-                           'name',
-                           'buysell',
-                           'price',
-                           'shares',
-                           'refno',
-                           'newrefno']
-                df_message = pd.DataFrame(cur.fetchall(), columns=columns)
-            except pg.Error as e:
-                print(e.pgerror)
-            try:  # select order book data
-                cur.execute(book_sql, [name, date])
-                conn.commit()
-                df_book = pd.DataFrame(cur.fetchall())
-                nlevels = int((df_book.shape[1] - 2) / 4)
-                base_columns = [str(i) for i in list(range(1, nlevels + 1))]
-                info_columns = ['date', 'sec', 'nano', 'name']
-                price_columns = ['bidprc.' + i for i in base_columns]
-                volume_columns = ['bidvol.' + i for i in base_columns]
-                price_columns.extend(['askprc.' + i for i in base_columns])
-                volume_columns.extend(['askvol.' + i for i in base_columns])
-                columns = info_columns + price_columns + volume_columns
-                df_book.columns = columns
-                df_time = df_book.loc[:, ('sec', 'nano')]
-                df_price = df_book.loc[:, price_columns]
-                df_volume = df_book.loc[:, volume_columns]
-                df_price = pd.concat([df_time, df_price], axis=1)
-                df_volume = pd.concat([df_time, df_volume], axis=1)
-            except pg.Error as e:
-                print(e.pgerror)
-        conn.close()
-        return (df_message, df_price, df_volume)
-    except pg.Error as e:
-        print('ERROR: unable to connect to database.')
+    if grp == 'noii':
+        try:
+            with h5py.File(db, 'r') as f:
+                try:
+                    messages = f['/noii/' + name]
+                    data = messages[:,:]
+                    T,N = data.shape
+                    columns = ['sec',
+                               'nano',
+                               'type',
+                               'cross',
+                               'side',
+                               'price',
+                               'shares',
+                               'matchno',
+                               'paired',
+                               'imb',
+                               'dir',
+                               'far',
+                               'near',
+                               'current']
+                    df = pd.DataFrame(data, index=np.arange(0,T), columns=columns)
+                    return df
+                except KeyError as e:
+                    print('Could not find name {} in messages'.format(name))
+        except OSError as e:
+            print('Could not find file {}'.format(path))
 
 def interpolate(data, tstep):
     """Interpolate limit order data.
