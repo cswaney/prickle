@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 import struct
 import h5py
 import time
+import os
 
 class Database():
     """Connection to an HDF5 database storing message and order book data.
@@ -20,54 +21,110 @@ class Database():
     """
 
     def __init__(self, path, names, nlevels, method):
-        # open file, create otherwise
-        try:
-            self.file = h5py.File(path, 'r+')  # read/write, file must exist
-            print('Appending existing HDF5 file.')
+        self.method = method
+        if self.method == 'hdf5':
+            try:
+                self.file = h5py.File(path, 'r+')  # read/write, file must exist
+                print('Appending existing HDF5 file.')
+                for name in names:
+                    if name in self.file['messages'].keys():
+                        print('Overwriting message data for {}'.format(name))
+                        del self.file['messages'][name]
+                    if name in self.file['orderbooks'].keys():
+                        print('Overwriting orderbook data for {}'.format(name))
+                        del self.file['orderbooks'][name]
+                    if name in self.file['trades'].keys():
+                        print('Overwriting trades data for {}'.format(name))
+                        del self.file['trades'][name]
+                    if name in self.file['noii'].keys():
+                        print('Overwriting noii data for {}'.format(name))
+                        del self.file['noii'][name]
+            except OSError as e:
+                print('HDF5 file does not exist. Creating a new one.')
+                self.file = h5py.File(path, 'x')  # create file, fail if exists
+            self.messages = self.file.require_group('messages')
+            self.orderbooks = self.file.require_group('orderbooks')
+            self.trades = self.file.require_group('trades')
+            self.noii = self.file.require_group('noii')
             for name in names:
-                if name in self.file['messages'].keys():
-                    print('Overwriting message data for {}'.format(name))
-                    del self.file['messages'][name]
-                if name in self.file['orderbooks'].keys():
-                    print('Overwriting orderbook data for {}'.format(name))
-                    del self.file['orderbooks'][name]
-                if name in self.file['trades'].keys():
-                    print('Overwriting trades data for {}'.format(name))
-                    del self.file['trades'][name]
-                if name in self.file['noii'].keys():
-                    print('Overwriting noii data for {}'.format(name))
-                    del self.file['noii'][name]
-        except OSError as e:
-            print('HDF5 file does not exist. Creating a new one.')
-            self.file = h5py.File(path, 'x')  # create file, fail if exists
-        # open groups, create otherwise
-        self.messages = self.file.require_group('messages')
-        self.orderbooks = self.file.require_group('orderbooks')
-        self.trades = self.file.require_group('trades')
-        self.noii = self.file.require_group('noii')
-        # open datasets, create otherwise
-        for name in names:
-            self.messages.require_dataset(name,
-                                          shape=(0, 8),
-                                          maxshape=(None,None),
-                                          dtype='i')
-            self.orderbooks.require_dataset(name,
-                                            shape=(0, 4 * nlevels + 2),
+                self.messages.require_dataset(name,
+                                              shape=(0, 8),
+                                              maxshape=(None,None),
+                                              dtype='i')
+                self.orderbooks.require_dataset(name,
+                                                shape=(0, 4 * nlevels + 2),
+                                                maxshape=(None,None),
+                                                dtype='i')
+                self.trades.require_dataset(name,
+                                            shape=(0, 5),
                                             maxshape=(None,None),
                                             dtype='i')
-            self.trades.require_dataset(name,
-                                        shape=(0, 5),
-                                        maxshape=(None,None),
-                                        dtype='i')
-            self.noii.require_dataset(name,
+                self.noii.require_dataset(name,
                                       shape=(0, 14),
                                       maxshape=(None,None),
                                       dtype='i')
+        elif self.method == 'csv':
+            if os.path.exists('{}'.format(path)):
+                response = input('A database with that path already exists. Are you sure you want to proceed? [Y/N] ')
+                if response == 'Y':
+                    proceed = True
+                    for item in os.listdir('{}/messages/'.format(path)):
+                        os.remove('{}/messages/{}'.format(path, item))
+                    for item in os.listdir('{}/books/'.format(path)):
+                        os.remove('{}/books/{}'.format(path, item))
+                    for item in os.listdir('{}/trades/'.format(path)):
+                        os.remove('{}/trades/{}'.format(path, item))
+                    for item in os.listdir('{}/noii/'.format(path)):
+                        os.remove('{}/noii/{}'.format(path, item))
+                    os.rmdir('{}/messages/'.format(path))
+                    os.rmdir('{}/books/'.format(path))
+                    os.rmdir('{}/trades/'.format(path))
+                    os.rmdir('{}/noii/'.format(path))
+                    for item in os.listdir('{}'.format(path)):
+                        os.remove('{}/{}'.format(path, item))
+                    os.rmdir('{}'.format(path))
+                else:
+                    # TODO: Need to exit the program
+                    proceed = False
+                    print('Process cancelled.')
+            else:
+                proceed = True
+
+            if proceed:
+                print('Creating a new database in directory: {}/'.format(path))
+
+                self.messages_path = '{}/messages/'.format(path)
+                self.books_path = '{}/books/'.format(path)
+                self.trades_path = '{}/trades/'.format(path)
+                self.noii_path = '{}/noii/'.format(path)
+
+                os.makedirs(path)
+                os.makedirs(self.messages_path)
+                os.makedirs(self.books_path)
+                os.makedirs(self.trades_path)
+                os.makedirs(self.noii_path)
+
+                columns = ['sec', 'nano', 'name']
+                columns.extend(['bidprc{}'.format(i) for i in range(nlevels)])
+                columns.extend(['askprc{}'.format(i) for i in range(nlevels)])
+                columns.extend(['bidvol{}'.format(i) for i in range(nlevels)])
+                columns.extend(['askvol{}'.format(i) for i in range(nlevels)])
+                for name in names:
+                    with open(self.messages_path + 'messages_{}.txt'.format(name), 'w') as messages_file:
+                        messages_file.write('sec,nano,name,type,refno,side,shares,price,mpid\n')
+                    with open(self.books_path + 'books_{}.txt'.format(name), 'w') as books_file:
+                        books_file.write(','.join(columns) + '\n')
+                    with open(self.trades_path + 'trades_{}.txt'.format(name), 'w') as trades_file:
+                        trades_file.write('sec,nano,name,side,shares,price\n')
+                    with open(self.noii_path + 'noii_{}.txt'.format(name), 'w') as noii_file:
+                        noii_file.write('sec,nano,name,type,cross,shares,price,paired,imb,dir,far,near,curr\n')
 
     def close(self):
-        self.file.close()
+        if self.method == 'hdf5':
+            self.file.close()
+        else:
+            pass
 
-# TODO: Make the different types of messages sub-classes of Message?
 class Message():
     """A class representing out-going messages from the NASDAQ system.
 
@@ -191,21 +248,6 @@ class Message():
     def to_array(self):
         """Returns message as an np.array of integers."""
 
-        values = []
-        values.append(int(self.sec))
-        values.append(int(self.nano))
-
-        # if self.type in ('A', 'F', 'X', 'D', 'E', 'C', 'U'):
-        #     sec = self.sec
-        #     nano = self.nano
-        #     if self.side == 'B':
-        #         side = -1
-        #     else:
-        #         side = 1
-        #     price = self.price
-        #     shares = self.shares
-        #     values = [sec, nano, side, price, shares]
-
         if self.type == 'P':
             if self.buysell == 'B':
                 side = -1
@@ -213,52 +255,38 @@ class Message():
                 side = 1
             values = [self.sec, self.nano, side, self.price, self.shares]
             return np.array(values)
-
-        # type
-        if self.type == 'A':  # add
-            values.append(0)
-        elif self.type == 'F':  # add w/mpid
-            values.append(1)
-        elif self.type == 'X':  # cancel
-            values.append(2)
-        elif self.type == 'D':  # delete
-            values.append(3)
-        elif self.type == 'E':  # execute
-            values.append(4)
-        elif self.type == 'C':  # execute w/price
-            values.append(5)
-        elif self.type == 'U':  # replace
-            values.append(6)
         else:
-            value.append(-1)
-
-        # side
-        if self.buysell == 'B':  # bid
-            values.append(1)
-        elif self.buysell == 'S':  # ask
-            values.append(-1)
-        else:
-            values.append(0)
-
-        # price
-        values.append(int(self.price))
-
-        # shares
-        values.append(int(self.shares))
-
-        # refno
-        if self.type in ('A', 'F', 'X', 'D', 'E', 'C', 'U'):
-            values.append(int(self.refno))
-        else:
-            values.append(-1)
-
-        # newrefno
-        if self.type == 'U':
-            values.append(int(self.newrefno))
-        else:
-            values.append(-1)
-
-        return np.array(values)
+            if self.type == 'A':  # add
+                type = 0
+            elif self.type == 'F':  # add w/mpid
+                type = 1
+            elif self.type == 'X':  # cancel
+                type = 2
+            elif self.type == 'D':  # delete
+                type = 3
+            elif self.type == 'E':  # execute
+                type = 4
+            elif self.type == 'C':  # execute w/price
+                type = 5
+            elif self.type == 'U':  # replace
+                type = 6
+            else:
+                type = -1
+            if self.buysell == 'B':  # bid
+                side = 1
+            elif self.buysell == 'S':  # ask
+                side = -1
+            else:
+                side = 0
+            values = [self.sec,
+                      self.nano,
+                      type,
+                      side,
+                      self.price,
+                      np.abs(self.shares),
+                      self.refno,
+                      self.newrefno]
+            return np.array(values)
 
     def to_txt(self, path=None):
         if self.type in ('S', 'H'):
@@ -467,7 +495,7 @@ class NOIIMessage():
                  self.current]
         return np.array(values)
 
-    def to_txt(self, path):
+    def to_txt(self, path=None):
         sep = ','
         if self.type == 'Q':
             line = [str(self.sec),
@@ -497,8 +525,11 @@ class NOIIMessage():
                     str(self.far / 10 ** 4),
                     str(self.near / 10 ** 4),
                     str(self.current / 10 ** 4)]
-        with open(path, 'a') as fout:
-            fout.write(sep.join(line) + '\n')
+        if path is None:
+            return sep.join(line) + '\n'
+        else:
+            with open(path, 'a') as fout:
+                fout.write(sep.join(line) + '\n')
 
 class Trade():
     """A class representing trades on the NASDAQ system.
@@ -626,6 +657,7 @@ class Messagelist():
 
     def to_hdf5(self, name, db, grp):
         """Write messages to HDF5 file."""
+        assert db.method == 'hdf5', 'Attempted to write to non-HDF5 database'
         m = self.messages[name]
         if len(m) > 0:
             listed = [message.to_array() for message in m]
@@ -649,7 +681,24 @@ class Messagelist():
                 db.noii[name].resize((db_resize, db_cols))
                 db.noii[name][db_size:db_resize, :] = array
             self.messages[name] = []  # reset
-        print('wrote {} messages to database (name={}, group={})'.format(len(m), name, grp))
+        print('wrote {} messages to dataset (name={}, group={})'.format(len(m), name, grp))
+
+    def to_txt(self, name, db, grp):
+        assert db.method == 'csv', 'Attempted to write to non-CSV database'
+        message_list = self.messages[name]
+        if len(message_list) > 0:
+            texted = [message.to_txt() for message in message_list]
+            if grp == 'messages':
+                with open('{}/messages_{}.txt'.format(db.messages_path, name), 'a') as fout:
+                    fout.writelines(texted)
+            if grp == 'trades':
+                with open('{}/trades_{}.txt'.format(db.trades_path, name), 'a') as fout:
+                    fout.writelines(texted)
+            if grp == 'noii':
+                with open('{}/noii_{}.txt'.format(db.noii_path, name), 'a') as fout:
+                    fout.writelines(texted)
+            self.messages[name] = []
+        print('wrote {} messages to dataset (name={}, group={})'.format(len(message_list), name, grp))
 
 class Order():
     """A class to represent limit orders.
@@ -866,12 +915,12 @@ class Book():
             if i < len(self.bids):
                 values.append(sorted_bids[i])
             else:
-                values.append(0)
+                values.append(-1)
         for i in range(0, self.levels): # ask price
             if i < len(self.asks):
                 values.append(sorted_asks[i])
             else:
-                values.append(0)
+                values.append(-1)
         for i in range(0, self.levels): # bid depth
             if i < len(self.bids):
                 values.append(self.bids[sorted_bids[i]])
@@ -895,12 +944,12 @@ class Book():
             if i < len(self.bids):
                 values.append(sorted_bids[i])
             else:
-                values.append(0)
+                values.append(-1)
         for i in range(0, self.levels): # ask price
             if i < len(self.asks):
                 values.append(sorted_asks[i])
             else:
-                values.append(0)
+                values.append(-1)
         for i in range(0, self.levels): # bid depth
             if i < len(self.bids):
                 values.append(self.bids[sorted_bids[i]])
@@ -934,15 +983,13 @@ class Book():
             if i < len(self.bids):
                 values.append(self.bids[sorted_bids[i]])
             else:
-                values.append(-1)
+                values.append(0)
         for i in range(0, self.levels): # ask depth
             if i < len(self.asks):
                 values.append(self.asks[sorted_asks[i]])
             else:
-                values.append(-1)
+                values.append(0)
         return ','.join([str(v) for v in values]) + '\n'
-        # with open(path, 'a') as fout:
-        #     fout.write(','.join([str(v) for v in values]) + '\n')
 
 class Booklist():
     """A class to store Books.
@@ -975,8 +1022,8 @@ class Booklist():
         b = self.books[message.name]['cur'].update(message)
         if self.method == 'hdf5':
             self.books[message.name]['hist'].append(b.to_array())
-        if self.method == 'postgres':
-            self.books[message.name]['hist'].append(b.to_list())
+        if self.method == 'csv':
+            self.books[message.name]['hist'].append(b.to_txt())
 
     def to_hdf5(self, name, db):
         """Write Book data to HDF5 file."""
@@ -988,6 +1035,14 @@ class Booklist():
             db_resize = db_size + array_size
             db.orderbooks[name].resize((db_resize,db_cols))
             db.orderbooks[name][db_size:db_resize,:] = array
+            self.books[name]['hist'] = []  # reset
+        print('wrote {} books to dataset (name={})'.format(len(hist), name))
+
+    def to_txt(self, name, db):
+        hist = self.books[name]['hist']
+        if len(hist) > 0:
+            with open('{}/books_{}.txt'.format(db.books_path, name), 'a') as fout:
+                fout.writelines(hist)
             self.books[name]['hist'] = []  # reset
         print('wrote {} books to dataset (name={})'.format(len(hist), name))
 
@@ -1273,7 +1328,7 @@ def protocol(message_bytes, message_type, time, version):
     else:
         raise ValueError('ITCH version ' + str(version) + ' is not supported')
 
-def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, user=None):
+def unpack(fin, ver, date, nlevels, names, method='csv', fout=None, host=None, user=None):
     """Read ITCH data file, construct LOB, and write to database.
 
     This method reads binary data from a ITCH data file, converts it into human-readable data, then saves time series of out-going messages as well as reconstructed order book snapshots to a research database.
@@ -1282,27 +1337,34 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
 
     """
 
-    MAXROWS = 10**4
+    BUFFER_SIZE = 10 ** 4
+
     orderlist = Orderlist()
     booklist = Booklist(date, names, nlevels, method)
     messagelist = Messagelist(date, names)
+    tradeslist = Messagelist(date, names)
+    noiilist = Messagelist(date, names)
 
     if method == 'hdf5':
-        db = Database(fout, names, nlevels)  # TODO: method='hdf5'
+        db = Database(path=fout, names=names, nlevels=nlevels, method='hdf5')
+        log_path = os.path.abspath('{}/../system.log'.format(fout))
+        with open(log_path, 'w') as system_file:
+            system_file.write('sec,nano,name,event\n')
     elif method == 'csv':
-        # TODO: db = Database(fout, names, nlevels, method='csv')
-        pass
-    else:
-        print('No database option specified. Creating csv files.')
+        db = Database(path=fout, names=names, nlevels=nlevels, method='csv')
+        log_path = '{}/system.log'.format(fout)
+        with open(log_path, 'w') as system_file:
+            system_file.write('sec,nano,name,event\n')
 
     data = open(fin, 'rb')
-    messagecount = 0
+    message_reads = 0
+    message_writes = 0
+    trade_writes = 0
+    noii_writes = 0
     reading = True
-    # writing = False
     clock = 0
     start = time.time()
 
-    # unpacking
     while reading:
 
         # read message
@@ -1310,7 +1372,7 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
         message_type = get_message_type(data.read(1))
         message_bytes = data.read(message_size - 1)
         message = get_message(message_bytes, message_type, date, clock, ver)
-        messagecount += 1
+        message_reads += 1
 
         # update clock
         if message_type == 'T':
@@ -1321,29 +1383,14 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
         # update system
         if message_type == 'S':
             print('SYSTEM MESSAGE: {}'.format(message.event))
-            # TODO: write to log file! (message.to_log(log_path))
-            if message.event == 'O':  # start messages
-                pass
-            elif message.event == 'S':  # start system
-                pass
-            elif message.event == 'Q':  # start market hours
-                pass
-            elif message.event == 'A':  # trading halt
-                pass
-            elif message.event == 'R':  # quote only
-                pass
-            elif message.event == 'B':  # resume trading
-                pass
-            elif message.event == 'M':  # end market
-                pass
-            elif message.event == 'E':  # end system
-                pass
-            elif message.event == 'C':  # end messages
+            message.to_txt(log_path)
+            if message.event == 'C':  # end messages
                 reading = False
         if message_type == 'H':
             if message.name in names:
-                # print('TRADING MESSAGE ({}): {}'.format(message.name, message.event))
-                # TODO: write to log (message.to_log('system.log')
+                print('TRADING MESSAGE ({}): {}'.format(message.name, message.event))
+                message.to_txt(log_path)
+                # TODO: What to do about halts?
                 if message.event == 'H':  # halted (all US)
                     pass
                 elif message.event == 'P':  # paused (all US)
@@ -1360,60 +1407,84 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
             orderlist.complete_message(del_message)
             orderlist.complete_message(add_message)
             if message.name in names:
+                message_writes += 1
                 orderlist.update(del_message)
                 booklist.update(del_message)
                 orderlist.add(add_message)
                 booklist.update(add_message)
                 messagelist.add(message)
+                # print('ORDER MESSAGE <REPLACE>')
         elif message_type in ('E', 'C', 'X', 'D'):
             orderlist.complete_message(message)
             if message.name in names:
+                message_writes += 1
                 orderlist.update(message)
                 booklist.update(message)
                 messagelist.add(message)
+                # print('ORDER MESSAGE')
         elif message_type in ('A', 'F'):
             if message.name in names:
+                message_writes += 1
                 orderlist.add(message)
                 booklist.update(message)
                 messagelist.add(message)
-        # elif message_type == 'P':  # TODO
-        #     if message.name in names:
-        #         tradeslist.add(message)
-        # elif message_type in ('Q', 'I'):
-        #     if message.name in names:
-        #         noiilist.add(message)
+                # print('ORDER MESSAGE')
+        elif message_type == 'P':
+            if message.name in names:
+                trade_writes += 1
+                tradeslist.add(message)
+                # print('TRADE MESSAGE')
+        elif message_type in ('Q', 'I'):
+            if message.name in names:
+                noii_writes += 1
+                noiilist.add(message)
+                # print('NOII MESSAGE')
 
-        # write
+        # write message
         if method == 'hdf5':
             if message_type in ('U', 'A', 'F', 'E', 'C', 'X', 'D'):
                 if message.name in names:
-                    # messagelist.add(message)
-                    if len(messagelist.messages[message.name]) == MAXROWS:
-                        messagelist.to_hdf5(name=message.name, db=db)
-                    # booklist.update(message)
-                    if len(booklist.books[message.name]['hist']) == MAXROWS:
+                    if len(messagelist.messages[message.name]) == BUFFER_SIZE:
+                        messagelist.to_hdf5(name=message.name, db=db, grp='messages')
+                    if len(booklist.books[message.name]['hist']) == BUFFER_SIZE:
                         booklist.to_hdf5(name=message.name, db=db)
             elif message_type == 'P':
                 if message.name in names:
-                    if len(tradeslist.trades[message.name]) == MAXROWS:
-                        tradeslist.to_hdf5(name=message.name, db=db)
+                    if len(tradeslist.messages[message.name]) == BUFFER_SIZE:
+                        tradeslist.to_hdf5(name=message.name, db=db, grp='trades')
             elif message_type in ('Q', 'I'):
                 if message.name in names:
-                    if len(noiilist.messages[message.name]) == MAXROWS:
-                        noiilist.to_hdf5(name=message.name, db=db)
+                    if len(noiilist.messages[message.name]) == BUFFER_SIZE:
+                        noiilist.to_hdf5(name=message.name, db=db, grp='noii')
         elif method == 'csv':
-            pass
+            if message_type in ('U', 'A', 'F', 'E', 'C', 'X', 'D'):
+                if message.name in names:
+                    if len(messagelist.messages[message.name]) == BUFFER_SIZE:
+                        messagelist.to_txt(name=message.name, db=db, grp='messages')
+                    if len(booklist.books[message.name]['hist']) == BUFFER_SIZE:
+                        booklist.to_txt(name=message.name, db=db)
+            elif message_type == 'P':
+                if message.name in names:
+                    if len(tradeslist.messages[message.name]) == BUFFER_SIZE:
+                        tradeslist.to_txt(name=message.name, db=db, grp='trades')
+            elif message_type in ('Q', 'I'):
+                if message.name in names:
+                    if len(noiilist.messages[message.name]) == BUFFER_SIZE:
+                        noiilist.to_txt(name=message.name, db=db, grp='noii')
 
     # clean up
+    print('Cleaning up...')
     for name in names:
         if method == 'hdf5':
-            messagelist.to_hdf5(name=name, db=db)
+            messagelist.to_hdf5(name=name, db=db, grp='messages')
             booklist.to_hdf5(name=name, db=db)
-            # TODO:
-            # tradeslist.to_hdf5(name=name, db=db)
-            # noiilist.to_hdf5(name=name, db=db)
+            tradeslist.to_hdf5(name=name, db=db, grp='trades')
+            noiilist.to_hdf5(name=name, db=db, grp='noii')
         elif method == 'csv':
-            pass
+            messagelist.to_txt(name=name, db=db, grp='messages')
+            booklist.to_txt(name=name, db=db)
+            tradeslist.to_txt(name=name, db=db, grp='trades')
+            noiilist.to_txt(name=name, db=db, grp='noii')
 
     stop = time.time()
 
@@ -1421,7 +1492,10 @@ def unpack(fin, ver, date, nlevels, names, method=None, fout=None, host=None, us
     db.close()
 
     print('Elapsed time: {} seconds'.format(stop - start))
-    print('Messages read: {}'.format(messagecount))
+    print('Messages read: {}'.format(message_reads))
+    print('Messages written: {}'.format(message_writes))
+    print('Trades written: {}'.format(trade_writes))
+    print('NOII written: {}'.format(noii_writes))
 
 def load_hdf5(db, name, grp):
     """Read data from database and return pd.DataFrames."""
@@ -1558,11 +1632,11 @@ def imshow(data, which, levels):
     """
 
     if which == 'prices':
-        idx = ['askprc' + str(i) for i in range(levels-1, -1, -1)]
-        idx.extend(['bidprc' + str(i) for i in range(0, levels, 1)])
+        idx = ['askprc.' + str(i) for i in range(levels, 0, -1)]
+        idx.extend(['bidprc.' + str(i) for i in range(1, levels + 1, 1)])
     elif which == 'volumes':
-        idx = ['askvol' + str(i) for i in range(levels-1, -1, -1)]
-        idx.extend(['bidvol' + str(i) for i in range(0, levels, 1)])
+        idx = ['askvol.' + str(i) for i in range(levels, 0, -1)]
+        idx.extend(['bidvol.' + str(i) for i in range(1, levels + 1, 1)])
     plt.imshow(data.loc[:,idx].T, interpolation='nearest', aspect='auto')
     plt.yticks(range(0, levels * 2, 1), idx)
     plt.colorbar()
@@ -1619,10 +1693,6 @@ def plot_trades(trades):
     plt.hist(-buys.shares, bins=np.arange(1, 1100, 100), edgecolor='white', color='C1', alpha=0.5)
     plt.show()
     plt.clf()
-
-def analyze(messages):
-    # message counts
-    message_counts = pd.value_counts(messages['type'])
 
 def nodups(books, messages):
     """Return messages and books with rows remove for orders that didn't change book."""
