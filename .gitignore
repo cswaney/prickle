@@ -105,3 +105,4 @@ ENV/
 
 # Playground
 playground/
+.idea
